@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>V1 — Debt Dashboard</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0f1115;
+    color: #f1f1f1;
+    margin: 0;
+    padding: 16px;
+  }
+  .header {
+    margin-bottom: 20px;
+  }
+  .header h1 {
+    font-size: 22px;
+    margin: 0 0 4px 0;
+  }
+  .summary {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .card {
+    background: #1a1d24;
+    border-radius: 12px;
+    padding: 16px;
+    flex: 1;
+  }
+  .card .label {
+    font-size: 12px;
+    color: #9aa0aa;
+    margin-bottom: 6px;
+  }
+  .card .value {
+    font-size: 20px;
+    font-weight: 600;
+  }
+  .debt-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .debt-item {
+    background: #1a1d24;
+    border-radius: 12px;
+    padding: 14px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+  }
+  .debt-item.paid {
+    opacity: 0.5;
+  }
+  .debt-info .name {
+    font-weight: 600;
+    font-size: 15px;
+  }
+  .debt-info .amount {
+    color: #9aa0aa;
+    font-size: 13px;
+    margin-top: 2px;
+  }
+  .debt-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .btn {
+    border: none;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+  }
+  .btn-remind {
+    background: #25D366;
+    color: #063311;
+  }
+  .btn-paid {
+    background: #2a2e38;
+    color: #f1f1f1;
+  }
+  .empty {
+    text-align: center;
+    color: #9aa0aa;
+    padding: 40px 16px;
+  }
+  .badge-paid {
+    background: #1f3d2a;
+    color: #4ade80;
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 6px;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Your Debt Dashboard</h1>
+</div>
+
+<div class="summary">
+  <div class="card">
+    <div class="label">Total Outstanding</div>
+    <div class="value" id="totalOutstanding">₦0</div>
+  </div>
+  <div class="card">
+    <div class="label">Unpaid Customers</div>
+    <div class="value" id="unpaidCount">0</div>
+  </div>
+</div>
+
+<div class="debt-list" id="debtList">
+  <div class="empty">Loading...</div>
+</div>
+
+<script>
+  // The chatId comes from the URL, e.g. dashboard.html?chat=123456789
+  // This is how we know WHICH tradesperson's debts to show.
+  const params = new URLSearchParams(window.location.search);
+  const chatId = params.get('chat');
+
+  if (!chatId) {
+    document.getElementById('debtList').innerHTML =
+      '<div class="empty">No account link found. Send /dashboard to the bot on Telegram to get your personal link.</div>';
+  } else {
+    loadDebts();
+  }
+
+  async function loadDebts() {
+    const res = await fetch(`/api/debts/${chatId}`);
+    const debts = await res.json();
+    render(debts);
+  }
+
+  function buildWhatsAppLink(debt) {
+    const message =
+      `Hi ${debt.customerName}, this is a reminder that ₦${debt.amount.toLocaleString()} is still owed. ` +
+      `You can pay whenever convenient. Thank you!`;
+    return `https://wa.me/${debt.phone}?text=${encodeURIComponent(message)}`;
+  }
+
+  function render(debts) {
+    const listEl = document.getElementById('debtList');
+    const unpaid = debts.filter(d => !d.paid);
+    const total = unpaid.reduce((sum, d) => sum + d.amount, 0);
+
+    document.getElementById('totalOutstanding').textContent = '₦' + total.toLocaleString();
+    document.getElementById('unpaidCount').textContent = unpaid.length;
+
+    if (debts.length === 0) {
+      listEl.innerHTML = '<div class="empty">No debts logged yet. Use /newdebt on Telegram to add one.</div>';
+      return;
+    }
+
+    listEl.innerHTML = debts.map(debt => `
+      <div class="debt-item ${debt.paid ? 'paid' : ''}">
+        <div class="debt-info">
+          <div class="name">${escapeHtml(debt.customerName)}</div>
+          <div class="amount">₦${debt.amount.toLocaleString()}</div>
+        </div>
+        <div class="debt-actions">
+          ${debt.paid
+            ? '<span class="badge-paid">PAID</span>'
+            : `
+              <a class="btn btn-remind" href="${buildWhatsAppLink(debt)}" target="_blank">Remind</a>
+              <button class="btn btn-paid" onclick="markPaid('${debt.id}')">Mark Paid</button>
+            `
+          }
+        </div>
+      </div>
+    `).join('');
+  }
+
+  async function markPaid(id) {
+    await fetch(`/api/debts/${id}/mark-paid`, { method: 'POST' });
+    loadDebts();
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+</script>
+
+</body>
+</html>
