@@ -54,6 +54,23 @@ function startBot(token, dashboardBaseUrl) {
 
   // ---- ACTIONS (shared by both slash commands AND menu button taps) ----
 
+  // Makes sure we know the tradesperson's business name before letting them
+  // do anything that eventually sends a message to a customer. Asked once.
+  async function requireBusinessName(chatId, next) {
+    const db = await getDb();
+    const owner = db.data.owners[chatId];
+    if (owner && owner.businessName) {
+      next();
+      return;
+    }
+    sessions[chatId] = { step: 'awaiting_business_name', next };
+    bot.sendMessage(chatId,
+      `First, what's your business name?\n\n` +
+      `This appears on the payment reminders your customers receive, ` +
+      `so they know it's really from you (e.g. "David's Electricals").`
+    );
+  }
+
   function sendWelcome(chatId) {
     bot.sendMessage(chatId,
       `Welcome to V1 👋\n\nI help you track who owes you money.\n\n` +
@@ -107,8 +124,8 @@ function startBot(token, dashboardBaseUrl) {
   }
 
   // ---- SLASH COMMANDS (still work, in case someone types them) ----
-  bot.onText(/\/start/, (msg) => sendWelcome(msg.chat.id));
-  bot.onText(/\/newdebt/, (msg) => beginNewDebt(msg.chat.id));
+  bot.onText(/\/start/, (msg) => requireBusinessName(msg.chat.id, () => sendWelcome(msg.chat.id)));
+  bot.onText(/\/newdebt/, (msg) => requireBusinessName(msg.chat.id, () => beginNewDebt(msg.chat.id)));
   bot.onText(/\/debts/, (msg) => showDebts(msg.chat.id));
   bot.onText(/\/dashboard/, (msg) => showDashboard(msg.chat.id));
   bot.onText(/\/paid/, (msg) => beginMarkPaid(msg.chat.id));
@@ -121,7 +138,7 @@ function startBot(token, dashboardBaseUrl) {
     if (text.startsWith('/')) return; // handled by onText above
 
     // Menu button taps arrive as plain text matching the button label
-    if (text === MENU.NEW_DEBT) return beginNewDebt(chatId);
+    if (text === MENU.NEW_DEBT) return requireBusinessName(chatId, () => beginNewDebt(chatId));
     if (text === MENU.MY_DEBTS) return showDebts(chatId);
     if (text === MENU.DASHBOARD) return showDashboard(chatId);
     if (text === MENU.MARK_PAID) return beginMarkPaid(chatId);
@@ -130,6 +147,17 @@ function startBot(token, dashboardBaseUrl) {
     if (!session) return;
 
     const db = await getDb();
+
+    // --- Flow: capturing the business name (asked once, before anything else) ---
+    if (session.step === 'awaiting_business_name') {
+      const next = session.next;
+      db.data.owners[chatId] = { businessName: text };
+      await db.write();
+      delete sessions[chatId];
+      bot.sendMessage(chatId, `Got it — reminders will go out as "${text}" ✅`);
+      if (next) next();
+      return;
+    }
 
     // --- Flow: logging a new debt ---
     if (session.step === 'awaiting_name') {
@@ -157,31 +185,41 @@ function startBot(token, dashboardBaseUrl) {
         bot.sendMessage(chatId, "That doesn't look like a valid amount. Please send a number, e.g. 8000");
         return;
       }
-      session.amount = amount;
-      session.step = 'awaiting_confirm';
+
+      // Save right away instead of asking for a separate "yes" — one less step.
+      // If it was a mistake, "undo" removes it within the next 60 seconds.
+      const debt = {
+        id: Date.now().toString(),
+        ownerChatId: chatId,
+        customerName: session.customerName,
+        phone: session.phone,
+        amount,
+        paid: false,
+        createdAt: new Date().toISOString(),
+      };
+      db.data.debts.push(debt);
+      await db.write();
+
       bot.sendMessage(chatId,
-        `Confirm:\n\n${session.customerName} owes ₦${amount.toLocaleString()}\n\n` +
-        `Reply "yes" to save, or "cancel" to stop.`
+        `Saved ✅ ${session.customerName} — ₦${amount.toLocaleString()}\n\n` +
+        `Made a mistake? Reply "undo" in the next minute to remove it.`
       );
+
+      sessions[chatId] = { step: 'just_saved', debtId: debt.id };
+      // After 60 seconds, "undo" no longer applies — clear the session quietly.
+      setTimeout(() => {
+        if (sessions[chatId] && sessions[chatId].debtId === debt.id) {
+          delete sessions[chatId];
+        }
+      }, 60000);
       return;
     }
 
-    if (session.step === 'awaiting_confirm') {
-      if (text.toLowerCase() === 'yes') {
-        const debt = {
-          id: Date.now().toString(),
-          ownerChatId: chatId,
-          customerName: session.customerName,
-          phone: session.phone,
-          amount: session.amount,
-          paid: false,
-          createdAt: new Date().toISOString(),
-        };
-        db.data.debts.push(debt);
+    if (session.step === 'just_saved') {
+      if (text.toLowerCase() === 'undo') {
+        db.data.debts = db.data.debts.filter(d => d.id !== session.debtId);
         await db.write();
-        bot.sendMessage(chatId, `Saved ✅ ${session.customerName} — ₦${session.amount.toLocaleString()}`);
-      } else {
-        bot.sendMessage(chatId, "Cancelled. Nothing was saved.");
+        bot.sendMessage(chatId, "Removed. That debt is no longer logged.");
       }
       delete sessions[chatId];
       return;

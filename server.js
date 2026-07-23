@@ -17,6 +17,15 @@ function startServer(port) {
     res.json(debts);
   });
 
+  // Returns the tradesperson's business name, so the dashboard can put it
+  // into the reminder message (so customers know who it's really from)
+  app.get('/api/owner/:chatId', async (req, res) => {
+    const db = await getDb();
+    const chatId = Number(req.params.chatId);
+    const owner = db.data.owners[chatId] || {};
+    res.json({ businessName: owner.businessName || null });
+  });
+
   // Marks a specific debt as paid from the dashboard (not just from Telegram)
   app.post('/api/debts/:id/mark-paid', async (req, res) => {
     const db = await getDb();

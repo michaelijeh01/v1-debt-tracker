@@ -270,12 +270,20 @@
   // This is how we know WHICH tradesperson's debts to show.
   const params = new URLSearchParams(window.location.search);
   const chatId = params.get('chat');
+  let businessName = ''; // filled in by loadOwner() before any reminder is sent
 
   if (!chatId) {
     document.getElementById('debtList').innerHTML =
       '<div class="empty"><strong>No account linked</strong>Send /dashboard to the bot on Telegram to get your personal link.</div>';
   } else {
+    loadOwner();
     loadDebts();
+  }
+
+  async function loadOwner() {
+    const res = await fetch(`/api/owner/${chatId}`);
+    const owner = await res.json();
+    businessName = owner.businessName || '';
   }
 
   async function loadDebts() {
@@ -285,9 +293,15 @@
   }
 
   function buildWhatsAppLink(debt) {
+    // If we have a business name, lead with it so the customer immediately
+    // knows who's messaging them — an unsigned reminder can read as spam.
+    const greeting = businessName
+      ? `Hello ${debt.customerName}, this is ${businessName}.`
+      : `Hello ${debt.customerName},`;
     const message =
-      `Hi ${debt.customerName}, this is a reminder that ₦${debt.amount.toLocaleString()} is still owed. ` +
-      `You can pay whenever convenient. Thank you!`;
+      `${greeting} Just a friendly reminder that ₦${debt.amount.toLocaleString()} ` +
+      `is still outstanding on your account. You can complete payment whenever convenient — ` +
+      `thank you for your continued patronage! 🙏`;
     return `https://wa.me/${debt.phone}?text=${encodeURIComponent(message)}`;
   }
 
