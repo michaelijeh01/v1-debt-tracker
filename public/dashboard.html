@@ -3,125 +3,266 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>V1 — Debt Dashboard</title>
+<title>V1 Ledger — Your Debt Book</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Work+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <style>
+  :root {
+    --ink-navy: #14213D;
+    --ink-navy-deep: #0D1730;
+    --paper: #FBF6EA;
+    --paper-shadow: #E7DFC9;
+    --signboard-gold: #F2A900;
+    --naira-green: #157A46;
+    --hot-clay: #E8502B;
+    --ink-soft: #6B7280;
+    --ink-faint: #9AA1B5;
+  }
+
   * { box-sizing: border-box; }
+
   body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: #0f1115;
-    color: #f1f1f1;
+    font-family: 'Work Sans', -apple-system, sans-serif;
+    background: var(--ink-navy);
+    background-image:
+      radial-gradient(circle at 15% 8%, rgba(242,169,0,0.08), transparent 40%),
+      radial-gradient(circle at 85% 92%, rgba(21,122,70,0.10), transparent 45%);
+    color: var(--paper);
     margin: 0;
-    padding: 16px;
+    padding: 20px 16px 48px;
+    min-height: 100vh;
   }
-  .header {
-    margin-bottom: 20px;
+
+  /* ---- SIGNBOARD HEADER ---- */
+  .signboard {
+    background: var(--signboard-gold);
+    border-radius: 14px;
+    padding: 18px 20px;
+    margin-bottom: 18px;
+    box-shadow: 0 6px 0 rgba(0,0,0,0.18), 0 10px 24px rgba(0,0,0,0.28);
+    position: relative;
+    overflow: hidden;
   }
-  .header h1 {
-    font-size: 22px;
-    margin: 0 0 4px 0;
+  .signboard::after {
+    content: "";
+    position: absolute;
+    top: -30%; right: -10%;
+    width: 140px; height: 140px;
+    background: rgba(255,255,255,0.12);
+    border-radius: 50%;
   }
-  .summary {
+  .signboard .eyebrow {
+    font-family: 'Work Sans', sans-serif;
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-navy-deep);
+    opacity: 0.65;
+    margin-bottom: 2px;
+  }
+  .signboard h1 {
+    font-family: 'Bungee', 'Work Sans', sans-serif;
+    font-weight: 400;
+    font-size: clamp(26px, 8vw, 34px);
+    line-height: 1.05;
+    color: var(--ink-navy-deep);
+    margin: 0;
+    letter-spacing: 0.01em;
+  }
+
+  /* ---- STAT CHIPS ---- */
+  .stats {
     display: flex;
-    gap: 12px;
+    gap: 10px;
     margin-bottom: 20px;
   }
-  .card {
-    background: #1a1d24;
-    border-radius: 12px;
-    padding: 16px;
+  .stat {
     flex: 1;
+    background: var(--ink-navy-deep);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px;
+    padding: 14px 16px;
   }
-  .card .label {
-    font-size: 12px;
-    color: #9aa0aa;
+  .stat .label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
     margin-bottom: 6px;
   }
-  .card .value {
-    font-size: 20px;
+  .stat .value {
+    font-family: 'IBM Plex Mono', monospace;
     font-weight: 600;
+    font-size: 21px;
+    color: var(--paper);
   }
+  .stat.owed .value { color: var(--signboard-gold); }
+
+  /* ---- SECTION LABEL ---- */
+  .section-label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 10px 4px;
+  }
+
+  /* ---- RECEIPT STUBS ---- */
   .debt-list {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 14px;
   }
-  .debt-item {
-    background: #1a1d24;
-    border-radius: 12px;
-    padding: 14px 16px;
+  .stub {
+    background: var(--paper);
+    color: var(--ink-navy-deep);
+    border-radius: 4px;
+    position: relative;
+    padding: 16px 16px 14px;
+    box-shadow: 0 4px 0 var(--paper-shadow), 0 8px 16px rgba(0,0,0,0.25);
+  }
+  /* perforated edge along the top, like a torn receipt */
+  .stub::before {
+    content: "";
+    position: absolute;
+    top: -6px; left: 0; right: 0;
+    height: 12px;
+    background-image: radial-gradient(circle, var(--ink-navy) 3.5px, transparent 3.6px);
+    background-size: 16px 12px;
+    background-position: 8px 0;
+  }
+  .stub.is-paid {
+    opacity: 0.72;
+  }
+
+  .stub-top {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    gap: 12px;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 10px;
   }
-  .debt-item.paid {
-    opacity: 0.5;
+  .stub-name {
+    font-family: 'Bungee', sans-serif;
+    font-weight: 400;
+    font-size: 16px;
+    letter-spacing: 0.01em;
+    line-height: 1.2;
   }
-  .debt-info .name {
+  .stub-amount {
+    font-family: 'IBM Plex Mono', monospace;
     font-weight: 600;
-    font-size: 15px;
+    font-size: 17px;
+    white-space: nowrap;
   }
-  .debt-info .amount {
-    color: #9aa0aa;
-    font-size: 13px;
-    margin-top: 2px;
+
+  .stub-divider {
+    border: none;
+    border-top: 1px dashed rgba(20,33,61,0.25);
+    margin: 10px 0 12px;
   }
-  .debt-actions {
+
+  .stub-actions {
     display: flex;
     gap: 8px;
-    flex-shrink: 0;
   }
   .btn {
+    flex: 1;
     border: none;
     border-radius: 8px;
-    padding: 8px 12px;
+    padding: 10px 12px;
+    font-family: 'Work Sans', sans-serif;
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
     text-decoration: none;
+    text-align: center;
     display: inline-block;
+    transition: transform 0.08s ease;
   }
+  .btn:active { transform: scale(0.97); }
   .btn-remind {
-    background: #25D366;
-    color: #063311;
+    background: var(--naira-green);
+    color: #EFFBEF;
   }
   .btn-paid {
-    background: #2a2e38;
-    color: #f1f1f1;
+    background: transparent;
+    color: var(--hot-clay);
+    border: 1.5px solid var(--hot-clay);
   }
-  .empty {
-    text-align: center;
-    color: #9aa0aa;
-    padding: 40px 16px;
-  }
-  .badge-paid {
-    background: #1f3d2a;
-    color: #4ade80;
-    font-size: 11px;
-    padding: 3px 8px;
+
+  /* ---- PAID STAMP ---- */
+  .stamp {
+    position: absolute;
+    top: 10px;
+    right: 14px;
+    border: 2.5px solid var(--naira-green);
+    color: var(--naira-green);
+    font-family: 'Bungee', sans-serif;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    padding: 4px 10px;
     border-radius: 6px;
+    transform: rotate(8deg);
+    opacity: 0.85;
+    animation: stamp-in 0.25s ease-out;
+  }
+  @keyframes stamp-in {
+    from { transform: rotate(8deg) scale(1.6); opacity: 0; }
+    to { transform: rotate(8deg) scale(1); opacity: 0.85; }
+  }
+
+  /* ---- EMPTY / LOADING STATE ---- */
+  .empty {
+    background: var(--ink-navy-deep);
+    border: 1px dashed rgba(255,255,255,0.15);
+    border-radius: 12px;
+    padding: 32px 20px;
+    text-align: center;
+    color: var(--ink-faint);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .empty strong {
+    display: block;
+    color: var(--paper);
+    font-family: 'Bungee', sans-serif;
+    font-size: 15px;
+    font-weight: 400;
+    margin-bottom: 6px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .stamp { animation: none; }
+    .btn { transition: none; }
   }
 </style>
 </head>
 <body>
 
-<div class="header">
-  <h1>Your Debt Dashboard</h1>
+<div class="signboard">
+  <div class="eyebrow">V1 · Debt Book</div>
+  <h1>Who Owes You</h1>
 </div>
 
-<div class="summary">
-  <div class="card">
-    <div class="label">Total Outstanding</div>
+<div class="stats">
+  <div class="stat owed">
+    <div class="label">Outstanding</div>
     <div class="value" id="totalOutstanding">₦0</div>
   </div>
-  <div class="card">
-    <div class="label">Unpaid Customers</div>
+  <div class="stat">
+    <div class="label">Unpaid</div>
     <div class="value" id="unpaidCount">0</div>
   </div>
 </div>
 
+<div class="section-label">Ledger</div>
 <div class="debt-list" id="debtList">
-  <div class="empty">Loading...</div>
+  <div class="empty">Loading your ledger…</div>
 </div>
 
 <script>
@@ -132,7 +273,7 @@
 
   if (!chatId) {
     document.getElementById('debtList').innerHTML =
-      '<div class="empty">No account link found. Send /dashboard to the bot on Telegram to get your personal link.</div>';
+      '<div class="empty"><strong>No account linked</strong>Send /dashboard to the bot on Telegram to get your personal link.</div>';
   } else {
     loadDebts();
   }
@@ -159,25 +300,27 @@
     document.getElementById('unpaidCount').textContent = unpaid.length;
 
     if (debts.length === 0) {
-      listEl.innerHTML = '<div class="empty">No debts logged yet. Use /newdebt on Telegram to add one.</div>';
+      listEl.innerHTML = '<div class="empty"><strong>Ledger is empty</strong>Use /newdebt on Telegram to log your first debt.</div>';
       return;
     }
 
     listEl.innerHTML = debts.map(debt => `
-      <div class="debt-item ${debt.paid ? 'paid' : ''}">
-        <div class="debt-info">
-          <div class="name">${escapeHtml(debt.customerName)}</div>
-          <div class="amount">₦${debt.amount.toLocaleString()}</div>
+      <div class="stub ${debt.paid ? 'is-paid' : ''}">
+        ${debt.paid ? '<div class="stamp">PAID</div>' : ''}
+        <div class="stub-top">
+          <div class="stub-name">${escapeHtml(debt.customerName)}</div>
+          <div class="stub-amount">₦${debt.amount.toLocaleString()}</div>
         </div>
-        <div class="debt-actions">
-          ${debt.paid
-            ? '<span class="badge-paid">PAID</span>'
-            : `
+        <hr class="stub-divider">
+        ${debt.paid
+          ? ''
+          : `
+            <div class="stub-actions">
               <a class="btn btn-remind" href="${buildWhatsAppLink(debt)}" target="_blank">Remind</a>
               <button class="btn btn-paid" onclick="markPaid('${debt.id}')">Mark Paid</button>
-            `
-          }
-        </div>
+            </div>
+          `
+        }
       </div>
     `).join('');
   }
