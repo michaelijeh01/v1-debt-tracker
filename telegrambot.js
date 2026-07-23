@@ -1,11 +1,38 @@
 const { TelegramBot } = require('node-telegram-bot-api');
 const { getDb } = require('./db');
 
+// These are the labels shown on the button menu at the bottom of the chat.
+// Keep them here so the menu and the message-matching logic always agree.
+const MENU = {
+  NEW_DEBT: '➕ New Debt',
+  MY_DEBTS: '📋 My Debts',
+  MARK_PAID: '✅ Mark Paid',
+  DASHBOARD: '📊 Dashboard',
+};
+
+const menuKeyboard = {
+  reply_markup: {
+    keyboard: [
+      [MENU.NEW_DEBT, MENU.MY_DEBTS],
+      [MENU.MARK_PAID, MENU.DASHBOARD],
+    ],
+    resize_keyboard: true, // keeps the buttons compact instead of huge
+  },
+};
+
 function startBot(token, dashboardBaseUrl) {
   const bot = new TelegramBot(token, { polling: true });
 
+  // This registers the "/" menu icon inside Telegram's own UI too,
+  // so both the button menu AND the native slash-command list work.
+  bot.setMyCommands([
+    { command: 'newdebt', description: 'Log a new debt' },
+    { command: 'debts', description: 'See everyone who owes you' },
+    { command: 'paid', description: 'Mark a debt as paid' },
+    { command: 'dashboard', description: 'Get your web dashboard link' },
+  ]);
+
   // ---- IN-MEMORY CONVERSATION STATE ----
-  // Tracks where each user is in the "log a new debt" flow.
   const sessions = {};
 
   function newSession() {
@@ -17,36 +44,30 @@ function startBot(token, dashboardBaseUrl) {
     return `${index + 1}. ${debt.customerName} — ₦${debt.amount.toLocaleString()} — ${status}`;
   }
 
-  // Cleans a phone number into WhatsApp's expected format (digits only, country code, no +/spaces)
   function cleanPhoneForWhatsApp(rawPhone) {
     let digits = rawPhone.replace(/[^0-9]/g, '');
-    // Nigerian numbers typed as 0803... need the leading 0 replaced with 234
     if (digits.startsWith('0')) {
       digits = '234' + digits.slice(1);
     }
     return digits;
   }
 
-  bot.onText(/\/start/, (msg) => {
-    const chatId = msg.chat.id;
+  // ---- ACTIONS (shared by both slash commands AND menu button taps) ----
+
+  function sendWelcome(chatId) {
     bot.sendMessage(chatId,
       `Welcome to V1 👋\n\nI help you track who owes you money.\n\n` +
-      `Commands:\n` +
-      `/newdebt - log a new debt\n` +
-      `/debts - see everyone who owes you\n` +
-      `/paid - mark a debt as paid\n` +
-      `/dashboard - get your web dashboard link`
+      `Use the menu below anytime — no need to type commands.`,
+      menuKeyboard
     );
-  });
+  }
 
-  bot.onText(/\/newdebt/, (msg) => {
-    const chatId = msg.chat.id;
+  function beginNewDebt(chatId) {
     sessions[chatId] = newSession();
     bot.sendMessage(chatId, "Let's log a new debt.\n\nWhat's the customer's name?");
-  });
+  }
 
-  bot.onText(/\/debts/, async (msg) => {
-    const chatId = msg.chat.id;
+  async function showDebts(chatId) {
     const db = await getDb();
     const myDebts = db.data.debts.filter(d => d.ownerChatId === chatId && !d.paid);
 
@@ -59,22 +80,19 @@ function startBot(token, dashboardBaseUrl) {
     const lines = myDebts.map((d, i) => formatDebtLine(d, i)).join('\n');
     bot.sendMessage(chatId,
       `📋 Outstanding debts:\n\n${lines}\n\n` +
-      `Total owed to you: ₦${total.toLocaleString()}\n\n` +
-      `See the full dashboard and send reminders at your dashboard link.`
+      `Total owed to you: ₦${total.toLocaleString()}`
     );
-  });
+  }
 
-  bot.onText(/\/dashboard/, (msg) => {
-    const chatId = msg.chat.id;
+  function showDashboard(chatId) {
     const link = `${dashboardBaseUrl}/dashboard.html?chat=${chatId}`;
     bot.sendMessage(chatId,
       `📊 Here's your personal dashboard link:\n\n${link}\n\n` +
       `Bookmark it — it works on your phone and your computer, and always shows your latest debts.`
     );
-  });
+  }
 
-  bot.onText(/\/paid/, async (msg) => {
-    const chatId = msg.chat.id;
+  async function beginMarkPaid(chatId) {
     const db = await getDb();
     const myDebts = db.data.debts.filter(d => d.ownerChatId === chatId && !d.paid);
 
@@ -86,13 +104,27 @@ function startBot(token, dashboardBaseUrl) {
     const lines = myDebts.map((d, i) => formatDebtLine(d, i)).join('\n');
     bot.sendMessage(chatId, `Which one got paid? Reply with the number:\n\n${lines}`);
     sessions[chatId] = { step: 'awaiting_paid_selection', list: myDebts };
-  });
+  }
 
+  // ---- SLASH COMMANDS (still work, in case someone types them) ----
+  bot.onText(/\/start/, (msg) => sendWelcome(msg.chat.id));
+  bot.onText(/\/newdebt/, (msg) => beginNewDebt(msg.chat.id));
+  bot.onText(/\/debts/, (msg) => showDebts(msg.chat.id));
+  bot.onText(/\/dashboard/, (msg) => showDashboard(msg.chat.id));
+  bot.onText(/\/paid/, (msg) => beginMarkPaid(msg.chat.id));
+
+  // ---- MAIN MESSAGE HANDLER (menu button taps + conversation flow) ----
   bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text ? msg.text.trim() : '';
 
-    if (text.startsWith('/')) return;
+    if (text.startsWith('/')) return; // handled by onText above
+
+    // Menu button taps arrive as plain text matching the button label
+    if (text === MENU.NEW_DEBT) return beginNewDebt(chatId);
+    if (text === MENU.MY_DEBTS) return showDebts(chatId);
+    if (text === MENU.DASHBOARD) return showDashboard(chatId);
+    if (text === MENU.MARK_PAID) return beginMarkPaid(chatId);
 
     const session = sessions[chatId];
     if (!session) return;
@@ -103,7 +135,7 @@ function startBot(token, dashboardBaseUrl) {
     if (session.step === 'awaiting_name') {
       session.customerName = text;
       session.step = 'awaiting_phone';
-      bot.sendMessage(chatId, `What's ${text}'s phone number? (this is needed to send them a WhatsApp reminder later, e.g. 08031234567)`);
+      bot.sendMessage(chatId, `What's ${text}'s phone number? (needed for the WhatsApp reminder, e.g. 08031234567)`);
       return;
     }
 
@@ -147,7 +179,7 @@ function startBot(token, dashboardBaseUrl) {
         };
         db.data.debts.push(debt);
         await db.write();
-        bot.sendMessage(chatId, `Saved ✅ ${session.customerName} — ₦${session.amount.toLocaleString()}\n\nUse /debts anytime to see everyone who owes you.`);
+        bot.sendMessage(chatId, `Saved ✅ ${session.customerName} — ₦${session.amount.toLocaleString()}`);
       } else {
         bot.sendMessage(chatId, "Cancelled. Nothing was saved.");
       }
