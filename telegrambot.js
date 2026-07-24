@@ -86,18 +86,30 @@ function startBot(token, dashboardBaseUrl) {
 
   async function showDebts(chatId) {
     const db = await getDb();
-    const myDebts = db.data.debts.filter(d => d.ownerChatId === chatId && !d.paid);
+    const myDebts = db.data.debts.filter(d => d.ownerChatId === chatId);
+    const unpaid = myDebts.filter(d => !d.paid);
+    const paid = myDebts.filter(d => d.paid);
 
     if (myDebts.length === 0) {
+      bot.sendMessage(chatId, "No debts logged yet. Tap ➕ New Debt to add your first one.");
+      return;
+    }
+
+    if (unpaid.length === 0) {
       bot.sendMessage(chatId, "No unpaid debts logged. Nice and clean ✅");
       return;
     }
 
-    const total = myDebts.reduce((sum, d) => sum + d.amount, 0);
-    const lines = myDebts.map((d, i) => formatDebtLine(d, i)).join('\n');
+    const total = unpaid.reduce((sum, d) => sum + d.amount, 0);
+    const lines = unpaid.map((d, i) => formatDebtLine(d, i)).join('\n');
+    const paidTotal = paid.reduce((sum, d) => sum + d.amount, 0);
+
     bot.sendMessage(chatId,
       `📋 Outstanding debts:\n\n${lines}\n\n` +
-      `Total owed to you: ₦${total.toLocaleString()}`
+      `Total owed to you: ₦${total.toLocaleString()}\n\n` +
+      (paid.length > 0
+        ? `✅ ${paid.length} paid debt${paid.length === 1 ? '' : 's'} (₦${paidTotal.toLocaleString()} collected) — view them on your dashboard.`
+        : '')
     );
   }
 

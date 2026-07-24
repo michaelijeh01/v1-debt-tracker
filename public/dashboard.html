@@ -236,6 +236,30 @@
     margin-bottom: 6px;
   }
 
+  /* ---- FILTER TABS ---- */
+  .tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .tab {
+    flex: 1;
+    background: var(--ink-navy-deep);
+    border: 1px solid rgba(255,255,255,0.08);
+    color: var(--ink-faint);
+    border-radius: 8px;
+    padding: 9px 6px;
+    font-family: 'Work Sans', sans-serif;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .tab.active {
+    background: var(--signboard-gold);
+    border-color: var(--signboard-gold);
+    color: var(--ink-navy-deep);
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .stamp { animation: none; }
     .btn { transition: none; }
@@ -261,6 +285,11 @@
 </div>
 
 <div class="section-label">Ledger</div>
+<div class="tabs">
+  <button class="tab active" id="tabAll" onclick="setFilter('all')">All</button>
+  <button class="tab" id="tabUnpaid" onclick="setFilter('unpaid')">Unpaid</button>
+  <button class="tab" id="tabPaid" onclick="setFilter('paid')">Paid</button>
+</div>
 <div class="debt-list" id="debtList">
   <div class="empty">Loading your ledger…</div>
 </div>
@@ -271,6 +300,8 @@
   const params = new URLSearchParams(window.location.search);
   const chatId = params.get('chat');
   let businessName = ''; // filled in by loadOwner() before any reminder is sent
+  let allDebts = [];      // full history, kept in memory so tab switches are instant
+  let currentFilter = 'all';
 
   if (!chatId) {
     document.getElementById('debtList').innerHTML =
@@ -288,8 +319,16 @@
 
   async function loadDebts() {
     const res = await fetch(`/api/debts/${chatId}`);
-    const debts = await res.json();
-    render(debts);
+    allDebts = await res.json();
+    render();
+  }
+
+  function setFilter(filter) {
+    currentFilter = filter;
+    document.getElementById('tabAll').classList.toggle('active', filter === 'all');
+    document.getElementById('tabUnpaid').classList.toggle('active', filter === 'unpaid');
+    document.getElementById('tabPaid').classList.toggle('active', filter === 'paid');
+    render();
   }
 
   function buildWhatsAppLink(debt) {
@@ -305,20 +344,34 @@
     return `https://wa.me/${debt.phone}?text=${encodeURIComponent(message)}`;
   }
 
-  function render(debts) {
+  function render() {
     const listEl = document.getElementById('debtList');
-    const unpaid = debts.filter(d => !d.paid);
+    const unpaid = allDebts.filter(d => !d.paid);
     const total = unpaid.reduce((sum, d) => sum + d.amount, 0);
 
     document.getElementById('totalOutstanding').textContent = '₦' + total.toLocaleString();
     document.getElementById('unpaidCount').textContent = unpaid.length;
 
-    if (debts.length === 0) {
+    if (allDebts.length === 0) {
       listEl.innerHTML = '<div class="empty"><strong>Ledger is empty</strong>Use /newdebt on Telegram to log your first debt.</div>';
       return;
     }
 
-    listEl.innerHTML = debts.map(debt => `
+    const visible = currentFilter === 'all'
+      ? allDebts
+      : currentFilter === 'paid'
+        ? allDebts.filter(d => d.paid)
+        : allDebts.filter(d => !d.paid);
+
+    if (visible.length === 0) {
+      const msg = currentFilter === 'paid'
+        ? '<strong>No paid debts yet</strong>Once you mark one as paid, it will show up here.'
+        : '<strong>Nothing unpaid</strong>Everything on your books is settled ✅';
+      listEl.innerHTML = `<div class="empty">${msg}</div>`;
+      return;
+    }
+
+    listEl.innerHTML = visible.map(debt => `
       <div class="stub ${debt.paid ? 'is-paid' : ''}">
         ${debt.paid ? '<div class="stamp">PAID</div>' : ''}
         <div class="stub-top">
