@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { startBot } = require('./telegrambot');
+const { startBot } = require('./telegramBot');
 const { startServer } = require('./server');
 
 const token = process.env.BOT_TOKEN;
@@ -14,8 +14,15 @@ if (!token) {
 const dashboardBaseUrl = process.env.DASHBOARD_BASE_URL || 'http://localhost:3000';
 const port = process.env.PORT || 3000;
 
+// Your own Telegram chat ID — the only person who can approve new users.
+// Without this set, nobody can be approved (including you), so double-check it.
+const adminChatId = process.env.ADMIN_CHAT_ID ? Number(process.env.ADMIN_CHAT_ID) : null;
+if (!adminChatId) {
+  console.warn('⚠️  ADMIN_CHAT_ID is not set — nobody will be able to approve new users, including you.');
+}
+
 startServer(port);
-startBot(token, dashboardBaseUrl);
+startBot(token, dashboardBaseUrl, adminChatId);
 
 console.log('✅ V1 is fully running: bot + dashboard.');
 console.log(`   Dashboard base URL: ${dashboardBaseUrl}`);

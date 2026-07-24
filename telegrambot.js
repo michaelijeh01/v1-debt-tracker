@@ -1,8 +1,6 @@
 const { TelegramBot } = require('node-telegram-bot-api');
 const { getDb } = require('./db');
 
-// These are the labels shown on the button menu at the bottom of the chat.
-// Keep them here so the menu and the message-matching logic always agree.
 const MENU = {
   NEW_DEBT: '➕ New Debt',
   MY_DEBTS: '📋 My Debts',
@@ -16,15 +14,14 @@ const menuKeyboard = {
       [MENU.NEW_DEBT, MENU.MY_DEBTS],
       [MENU.MARK_PAID, MENU.DASHBOARD],
     ],
-    resize_keyboard: true, // keeps the buttons compact instead of huge
+    resize_keyboard: true,
   },
 };
 
-function startBot(token, dashboardBaseUrl) {
+// adminChatId identifies YOU — the only person who can approve new users.
+function startBot(token, dashboardBaseUrl, adminChatId) {
   const bot = new TelegramBot(token, { polling: true });
 
-  // This registers the "/" menu icon inside Telegram's own UI too,
-  // so both the button menu AND the native slash-command list work.
   bot.setMyCommands([
     { command: 'newdebt', description: 'Log a new debt' },
     { command: 'debts', description: 'See everyone who owes you' },
@@ -32,7 +29,6 @@ function startBot(token, dashboardBaseUrl) {
     { command: 'dashboard', description: 'Get your web dashboard link' },
   ]);
 
-  // ---- IN-MEMORY CONVERSATION STATE ----
   const sessions = {};
 
   function newSession() {
@@ -52,10 +48,83 @@ function startBot(token, dashboardBaseUrl) {
     return digits;
   }
 
-  // ---- ACTIONS (shared by both slash commands AND menu button taps) ----
+  function isAdmin(chatId) {
+    return adminChatId && chatId === adminChatId;
+  }
 
-  // Makes sure we know the tradesperson's business name before letting them
-  // do anything that eventually sends a message to a customer. Asked once.
+  // ---- ACCESS CONTROL ----
+  // Returns true if this chatId is allowed to use the bot. If not, it
+  // politely blocks them AND notifies you (once) so you can approve them.
+  async function checkAccess(chatId, fromUser) {
+    if (isAdmin(chatId)) return true;
+
+    const db = await getDb();
+    if (db.data.allowedUsers.includes(chatId)) return true;
+
+    // Not approved — let them know, and notify the admin (only the first time)
+    const alreadyRequested = db.data.accessRequests.some(r => r.chatId === chatId);
+    if (!alreadyRequested) {
+      const name = fromUser.username ? `@${fromUser.username}` : (fromUser.first_name || 'Someone');
+      db.data.accessRequests.push({ chatId, name, requestedAt: new Date().toISOString() });
+      await db.write();
+
+      if (adminChatId) {
+        bot.sendMessage(adminChatId,
+          `🔒 New access request from ${name} (chat ID: ${chatId}).\n\n` +
+          `Reply with:\n/approve ${chatId}\n\nto let them in.`
+        );
+      }
+    }
+
+    bot.sendMessage(chatId,
+      `This bot is currently invite-only. I've let the owner know you're interested — they'll approve you shortly.`
+    );
+    return false;
+  }
+
+  // ---- ADMIN-ONLY COMMANDS ----
+  bot.onText(/\/approve (.+)/, async (msg, match) => {
+    if (!isAdmin(msg.chat.id)) return;
+    const targetId = Number(match[1].trim());
+    if (!targetId) {
+      bot.sendMessage(msg.chat.id, "Couldn't read that chat ID. Use: /approve 123456789");
+      return;
+    }
+    const db = await getDb();
+    if (!db.data.allowedUsers.includes(targetId)) {
+      db.data.allowedUsers.push(targetId);
+    }
+    db.data.accessRequests = db.data.accessRequests.filter(r => r.chatId !== targetId);
+    await db.write();
+
+    bot.sendMessage(msg.chat.id, `✅ Approved chat ID ${targetId}. They can now use the bot.`);
+    bot.sendMessage(targetId, `You've been approved ✅ Send /start to get going.`);
+  });
+
+  bot.onText(/\/revoke (.+)/, async (msg, match) => {
+    if (!isAdmin(msg.chat.id)) return;
+    const targetId = Number(match[1].trim());
+    const db = await getDb();
+    db.data.allowedUsers = db.data.allowedUsers.filter(id => id !== targetId);
+    await db.write();
+    bot.sendMessage(msg.chat.id, `Access revoked for chat ID ${targetId}.`);
+  });
+
+  bot.onText(/\/pending/, async (msg) => {
+    if (!isAdmin(msg.chat.id)) return;
+    const db = await getDb();
+    if (db.data.accessRequests.length === 0) {
+      bot.sendMessage(msg.chat.id, "No pending access requests.");
+      return;
+    }
+    const lines = db.data.accessRequests
+      .map(r => `${r.name} — chat ID: ${r.chatId}`)
+      .join('\n');
+    bot.sendMessage(msg.chat.id, `Pending requests:\n\n${lines}`);
+  });
+
+  // ---- REGULAR ACTIONS (shared by slash commands AND menu button taps) ----
+
   async function requireBusinessName(chatId, next) {
     const db = await getDb();
     const owner = db.data.owners[chatId];
@@ -135,12 +204,27 @@ function startBot(token, dashboardBaseUrl) {
     sessions[chatId] = { step: 'awaiting_paid_selection', list: myDebts };
   }
 
-  // ---- SLASH COMMANDS (still work, in case someone types them) ----
-  bot.onText(/\/start/, (msg) => requireBusinessName(msg.chat.id, () => sendWelcome(msg.chat.id)));
-  bot.onText(/\/newdebt/, (msg) => requireBusinessName(msg.chat.id, () => beginNewDebt(msg.chat.id)));
-  bot.onText(/\/debts/, (msg) => showDebts(msg.chat.id));
-  bot.onText(/\/dashboard/, (msg) => showDashboard(msg.chat.id));
-  bot.onText(/\/paid/, (msg) => beginMarkPaid(msg.chat.id));
+  // ---- SLASH COMMANDS (gated behind access check) ----
+  bot.onText(/^\/start$/, async (msg) => {
+    if (!(await checkAccess(msg.chat.id, msg.from))) return;
+    requireBusinessName(msg.chat.id, () => sendWelcome(msg.chat.id));
+  });
+  bot.onText(/^\/newdebt$/, async (msg) => {
+    if (!(await checkAccess(msg.chat.id, msg.from))) return;
+    requireBusinessName(msg.chat.id, () => beginNewDebt(msg.chat.id));
+  });
+  bot.onText(/^\/debts$/, async (msg) => {
+    if (!(await checkAccess(msg.chat.id, msg.from))) return;
+    showDebts(msg.chat.id);
+  });
+  bot.onText(/^\/dashboard$/, async (msg) => {
+    if (!(await checkAccess(msg.chat.id, msg.from))) return;
+    showDashboard(msg.chat.id);
+  });
+  bot.onText(/^\/paid$/, async (msg) => {
+    if (!(await checkAccess(msg.chat.id, msg.from))) return;
+    beginMarkPaid(msg.chat.id);
+  });
 
   // ---- MAIN MESSAGE HANDLER (menu button taps + conversation flow) ----
   bot.on('message', async (msg) => {
@@ -149,7 +233,8 @@ function startBot(token, dashboardBaseUrl) {
 
     if (text.startsWith('/')) return; // handled by onText above
 
-    // Menu button taps arrive as plain text matching the button label
+    if (!(await checkAccess(chatId, msg.from))) return;
+
     if (text === MENU.NEW_DEBT) return requireBusinessName(chatId, () => beginNewDebt(chatId));
     if (text === MENU.MY_DEBTS) return showDebts(chatId);
     if (text === MENU.DASHBOARD) return showDashboard(chatId);
@@ -160,7 +245,6 @@ function startBot(token, dashboardBaseUrl) {
 
     const db = await getDb();
 
-    // --- Flow: capturing the business name (asked once, before anything else) ---
     if (session.step === 'awaiting_business_name') {
       const next = session.next;
       db.data.owners[chatId] = { businessName: text };
@@ -171,7 +255,6 @@ function startBot(token, dashboardBaseUrl) {
       return;
     }
 
-    // --- Flow: logging a new debt ---
     if (session.step === 'awaiting_name') {
       session.customerName = text;
       session.step = 'awaiting_phone';
@@ -198,8 +281,6 @@ function startBot(token, dashboardBaseUrl) {
         return;
       }
 
-      // Save right away instead of asking for a separate "yes" — one less step.
-      // If it was a mistake, "undo" removes it within the next 60 seconds.
       const debt = {
         id: Date.now().toString(),
         ownerChatId: chatId,
@@ -218,7 +299,6 @@ function startBot(token, dashboardBaseUrl) {
       );
 
       sessions[chatId] = { step: 'just_saved', debtId: debt.id };
-      // After 60 seconds, "undo" no longer applies — clear the session quietly.
       setTimeout(() => {
         if (sessions[chatId] && sessions[chatId].debtId === debt.id) {
           delete sessions[chatId];
@@ -237,7 +317,6 @@ function startBot(token, dashboardBaseUrl) {
       return;
     }
 
-    // --- Flow: marking a debt as paid ---
     if (session.step === 'awaiting_paid_selection') {
       const choice = parseInt(text, 10);
       if (!choice || choice < 1 || choice > session.list.length) {
