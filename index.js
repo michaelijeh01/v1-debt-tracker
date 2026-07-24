@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { startBot } = require('./telegramBot');
+const { startBot } = require('./telegrambot');
 const { startServer } = require('./server');
 
 const token = process.env.BOT_TOKEN;
