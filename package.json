@@ -14,10 +14,10 @@
     "node": "20.x"
   },
   "dependencies": {
+    "@upstash/redis": "^1.38.0",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "lowdb": "^7.0.1",
-    "mongodb": "^6.21.0",
     "node-telegram-bot-api": "^1.2.0"
   }
 }
