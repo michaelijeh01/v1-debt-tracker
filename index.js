@@ -1,4 +1,14 @@
 require('dotenv').config();
+
+// Safety net: if anything anywhere fails without being caught, log it
+// clearly instead of it disappearing with no trace in the logs.
+process.on('unhandledRejection', (err) => {
+  console.error('❌ Unhandled promise rejection:', err);
+});
+process.on('uncaughtException', (err) => {
+  console.error('❌ Uncaught exception:', err);
+});
+
 const { startBot } = require('./telegrambot');
 const { startServer } = require('./server');
 

@@ -21,8 +21,18 @@ async function getDb() {
 }
 
 async function createMongoDb() {
-  const client = new MongoClient(process.env.MONGODB_URI);
-  await client.connect();
+  const client = new MongoClient(process.env.MONGODB_URI, {
+    serverSelectionTimeoutMS: 8000, // fail fast (8s) instead of hanging for 30s+
+    connectTimeoutMS: 8000,
+  });
+
+  try {
+    await client.connect();
+  } catch (err) {
+    console.error('❌ MongoDB connection failed:', err.message);
+    throw err;
+  }
+
   const collection = client.db('v1tracker').collection('appState');
 
   // Everything lives in a single document, same shape as the old JSON file.

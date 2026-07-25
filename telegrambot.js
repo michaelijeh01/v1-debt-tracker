@@ -52,6 +52,24 @@ function startBot(token, dashboardBaseUrl, adminChatId) {
     return adminChatId && chatId === adminChatId;
   }
 
+  // Wraps any handler so that if something fails (e.g. the database is
+  // unreachable), we LOG it clearly and tell the user, instead of the
+  // message silently vanishing with no trace anywhere.
+  function safe(handler) {
+    return async (...args) => {
+      try {
+        await handler(...args);
+      } catch (err) {
+        console.error('❌ Bot handler error:', err);
+        const chatId = args[0]?.chat?.id;
+        if (chatId) {
+          bot.sendMessage(chatId, "Something went wrong on my end. Please try again in a moment.")
+            .catch(() => {}); // don't let a failed error-message itself crash anything
+        }
+      }
+    };
+  }
+
   // ---- ACCESS CONTROL ----
   // Returns true if this chatId is allowed to use the bot. If not, it
   // politely blocks them AND notifies you (once) so you can approve them.
@@ -83,7 +101,7 @@ function startBot(token, dashboardBaseUrl, adminChatId) {
   }
 
   // ---- ADMIN-ONLY COMMANDS ----
-  bot.onText(/\/approve (.+)/, async (msg, match) => {
+  bot.onText(/\/approve (.+)/, safe(async (msg, match) => {
     if (!isAdmin(msg.chat.id)) return;
     const targetId = Number(match[1].trim());
     if (!targetId) {
@@ -99,18 +117,18 @@ function startBot(token, dashboardBaseUrl, adminChatId) {
 
     bot.sendMessage(msg.chat.id, `✅ Approved chat ID ${targetId}. They can now use the bot.`);
     bot.sendMessage(targetId, `You've been approved ✅ Send /start to get going.`);
-  });
+  }));
 
-  bot.onText(/\/revoke (.+)/, async (msg, match) => {
+  bot.onText(/\/revoke (.+)/, safe(async (msg, match) => {
     if (!isAdmin(msg.chat.id)) return;
     const targetId = Number(match[1].trim());
     const db = await getDb();
     db.data.allowedUsers = db.data.allowedUsers.filter(id => id !== targetId);
     await db.write();
     bot.sendMessage(msg.chat.id, `Access revoked for chat ID ${targetId}.`);
-  });
+  }));
 
-  bot.onText(/\/pending/, async (msg) => {
+  bot.onText(/\/pending/, safe(async (msg) => {
     if (!isAdmin(msg.chat.id)) return;
     const db = await getDb();
     if (db.data.accessRequests.length === 0) {
@@ -121,7 +139,7 @@ function startBot(token, dashboardBaseUrl, adminChatId) {
       .map(r => `${r.name} — chat ID: ${r.chatId}`)
       .join('\n');
     bot.sendMessage(msg.chat.id, `Pending requests:\n\n${lines}`);
-  });
+  }));
 
   // ---- REGULAR ACTIONS (shared by slash commands AND menu button taps) ----
 
@@ -205,29 +223,29 @@ function startBot(token, dashboardBaseUrl, adminChatId) {
   }
 
   // ---- SLASH COMMANDS (gated behind access check) ----
-  bot.onText(/^\/start$/, async (msg) => {
+  bot.onText(/^\/start$/, safe(async (msg) => {
     if (!(await checkAccess(msg.chat.id, msg.from))) return;
     requireBusinessName(msg.chat.id, () => sendWelcome(msg.chat.id));
-  });
-  bot.onText(/^\/newdebt$/, async (msg) => {
+  }));
+  bot.onText(/^\/newdebt$/, safe(async (msg) => {
     if (!(await checkAccess(msg.chat.id, msg.from))) return;
     requireBusinessName(msg.chat.id, () => beginNewDebt(msg.chat.id));
-  });
-  bot.onText(/^\/debts$/, async (msg) => {
+  }));
+  bot.onText(/^\/debts$/, safe(async (msg) => {
     if (!(await checkAccess(msg.chat.id, msg.from))) return;
     showDebts(msg.chat.id);
-  });
-  bot.onText(/^\/dashboard$/, async (msg) => {
+  }));
+  bot.onText(/^\/dashboard$/, safe(async (msg) => {
     if (!(await checkAccess(msg.chat.id, msg.from))) return;
     showDashboard(msg.chat.id);
-  });
-  bot.onText(/^\/paid$/, async (msg) => {
+  }));
+  bot.onText(/^\/paid$/, safe(async (msg) => {
     if (!(await checkAccess(msg.chat.id, msg.from))) return;
     beginMarkPaid(msg.chat.id);
-  });
+  }));
 
   // ---- MAIN MESSAGE HANDLER (menu button taps + conversation flow) ----
-  bot.on('message', async (msg) => {
+  bot.on('message', safe(async (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text ? msg.text.trim() : '';
 
@@ -331,7 +349,7 @@ function startBot(token, dashboardBaseUrl, adminChatId) {
       delete sessions[chatId];
       return;
     }
-  });
+  }));
 
   return bot;
 }
