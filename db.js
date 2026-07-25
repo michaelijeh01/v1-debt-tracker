@@ -24,6 +24,8 @@ async function createMongoDb() {
   const client = new MongoClient(process.env.MONGODB_URI, {
     serverSelectionTimeoutMS: 8000, // fail fast (8s) instead of hanging for 30s+
     connectTimeoutMS: 8000,
+    family: 4, // force IPv4 — fixes a known TLS handshake failure some cloud
+               // hosts hit over IPv6 when connecting to MongoDB Atlas
   });
 
   try {
