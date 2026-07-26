@@ -420,9 +420,9 @@
         ${debt.paid ? '<div class="stamp">PAID</div>' : ''}
         <div class="stub-top">
           <div class="stub-name">${escapeHtml(debt.customerName)}</div>
-          <div class="stub-amount">₦${debt.amount.toLocaleString()}</div>
+          <div class="stub-amount">₦${(debt.paid ? debt.amount : owed).toLocaleString()}</div>
         </div>
-        ${isPartial ? `<div class="stub-partial-note">₦${debt.amountPaid.toLocaleString()} paid — ₦${owed.toLocaleString()} left</div>` : ''}
+        ${isPartial ? `<div class="stub-partial-note">₦${debt.amountPaid.toLocaleString()} paid of ₦${debt.amount.toLocaleString()} total</div>` : ''}
         <hr class="stub-divider">
         ${debt.paid
           ? ''
