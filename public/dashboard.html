@@ -307,8 +307,15 @@
     document.getElementById('debtList').innerHTML =
       '<div class="empty"><strong>No account linked</strong>Send /dashboard to the bot on Telegram to get your personal link.</div>';
   } else {
-    loadOwner();
-    loadDebts();
+    init();
+  }
+
+  async function init() {
+    // Wait for the business name to load FIRST, so it's guaranteed to be
+    // ready before any reminder message gets built. Loading them at the
+    // same time caused reminders to sometimes go out without the name.
+    await loadOwner();
+    await loadDebts();
   }
 
   async function loadOwner() {
