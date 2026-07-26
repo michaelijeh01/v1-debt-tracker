@@ -34,7 +34,6 @@
     min-height: 100vh;
   }
 
-  /* ---- SIGNBOARD HEADER ---- */
   .signboard {
     background: var(--signboard-gold);
     border-radius: 14px;
@@ -72,7 +71,6 @@
     letter-spacing: 0.01em;
   }
 
-  /* ---- STAT CHIPS ---- */
   .stats {
     display: flex;
     gap: 10px;
@@ -101,7 +99,6 @@
   }
   .stat.owed .value { color: var(--signboard-gold); }
 
-  /* ---- SECTION LABEL ---- */
   .section-label {
     font-size: 12px;
     font-weight: 700;
@@ -111,7 +108,6 @@
     margin: 0 0 10px 4px;
   }
 
-  /* ---- RECEIPT STUBS ---- */
   .debt-list {
     display: flex;
     flex-direction: column;
@@ -125,7 +121,6 @@
     padding: 16px 16px 14px;
     box-shadow: 0 4px 0 var(--paper-shadow), 0 8px 16px rgba(0,0,0,0.25);
   }
-  /* perforated edge along the top, like a torn receipt */
   .stub::before {
     content: "";
     position: absolute;
@@ -144,7 +139,7 @@
     justify-content: space-between;
     align-items: baseline;
     gap: 10px;
-    margin-bottom: 10px;
+    margin-bottom: 4px;
   }
   .stub-name {
     font-family: 'Bungee', sans-serif;
@@ -158,6 +153,13 @@
     font-weight: 600;
     font-size: 17px;
     white-space: nowrap;
+  }
+
+  .stub-partial-note {
+    font-size: 12px;
+    color: var(--naira-green);
+    font-weight: 600;
+    margin-bottom: 8px;
   }
 
   .stub-divider {
@@ -194,8 +196,33 @@
     color: var(--hot-clay);
     border: 1.5px solid var(--hot-clay);
   }
+  .btn-delete {
+    flex: 0 0 auto;
+    background: transparent;
+    color: var(--ink-faint);
+    border: 1.5px solid rgba(20,33,61,0.2);
+    width: 38px;
+    padding: 10px 0;
+    font-size: 15px;
+  }
 
-  /* ---- PAID STAMP ---- */
+  .payment-form {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+  }
+  .payment-input {
+    flex: 1;
+    border: 1.5px solid rgba(20,33,61,0.25);
+    border-radius: 8px;
+    padding: 9px 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 14px;
+    background: white;
+    color: var(--ink-navy-deep);
+    min-width: 0;
+  }
+
   .stamp {
     position: absolute;
     top: 10px;
@@ -216,7 +243,6 @@
     to { transform: rotate(8deg) scale(1); opacity: 0.85; }
   }
 
-  /* ---- EMPTY / LOADING STATE ---- */
   .empty {
     background: var(--ink-navy-deep);
     border: 1px dashed rgba(255,255,255,0.15);
@@ -236,7 +262,6 @@
     margin-bottom: 6px;
   }
 
-  /* ---- FILTER TABS ---- */
   .tabs {
     display: flex;
     gap: 6px;
@@ -295,39 +320,47 @@
 </div>
 
 <script>
-  // The chatId comes from the URL, e.g. dashboard.html?chat=123456789
-  // This is how we know WHICH tradesperson's debts to show.
   const params = new URLSearchParams(window.location.search);
   const chatId = params.get('chat');
-  let businessName = ''; // filled in by loadOwner() before any reminder is sent
-  let allDebts = [];      // full history, kept in memory so tab switches are instant
+  const accessToken = params.get('token');
+  let businessName = '';
+  let allDebts = [];
   let currentFilter = 'all';
+  const paymentFormOpenFor = new Set(); // which debt IDs currently show the "log payment" input
 
-  if (!chatId) {
+  if (!chatId || !accessToken) {
     document.getElementById('debtList').innerHTML =
       '<div class="empty"><strong>No account linked</strong>Send /dashboard to the bot on Telegram to get your personal link.</div>';
   } else {
     init();
   }
 
+  function remaining(debt) {
+    return debt.amount - (debt.amountPaid || 0);
+  }
+
   async function init() {
-    // Wait for the business name to load FIRST, so it's guaranteed to be
-    // ready before any reminder message gets built. Loading them at the
-    // same time caused reminders to sometimes go out without the name.
     await loadOwner();
     await loadDebts();
   }
 
   async function loadOwner() {
-    const res = await fetch(`/api/owner/${chatId}`);
+    const res = await fetch(`/api/owner/${chatId}?token=${accessToken}`);
+    if (res.status === 403) return showAccessDenied();
     const owner = await res.json();
     businessName = owner.businessName || '';
   }
 
   async function loadDebts() {
-    const res = await fetch(`/api/debts/${chatId}`);
+    const res = await fetch(`/api/debts/${chatId}?token=${accessToken}`);
+    if (res.status === 403) return showAccessDenied();
     allDebts = await res.json();
     render();
+  }
+
+  function showAccessDenied() {
+    document.getElementById('debtList').innerHTML =
+      '<div class="empty"><strong>Access denied</strong>This link is invalid or expired. Send /dashboard to the bot on Telegram to get a fresh one.</div>';
   }
 
   function setFilter(filter) {
@@ -339,13 +372,12 @@
   }
 
   function buildWhatsAppLink(debt) {
-    // If we have a business name, lead with it so the customer immediately
-    // knows who's messaging them — an unsigned reminder can read as spam.
     const greeting = businessName
       ? `Hello ${debt.customerName}, this is ${businessName}.`
       : `Hello ${debt.customerName},`;
+    const owed = remaining(debt);
     const message =
-      `${greeting} Just a friendly reminder that ₦${debt.amount.toLocaleString()} ` +
+      `${greeting} Just a friendly reminder that ₦${owed.toLocaleString()} ` +
       `is still outstanding on your account. You can complete payment whenever convenient — ` +
       `thank you for your continued patronage! 🙏`;
     return `https://wa.me/${debt.phone}?text=${encodeURIComponent(message)}`;
@@ -354,7 +386,7 @@
   function render() {
     const listEl = document.getElementById('debtList');
     const unpaid = allDebts.filter(d => !d.paid);
-    const total = unpaid.reduce((sum, d) => sum + d.amount, 0);
+    const total = unpaid.reduce((sum, d) => sum + remaining(d), 0);
 
     document.getElementById('totalOutstanding').textContent = '₦' + total.toLocaleString();
     document.getElementById('unpaidCount').textContent = unpaid.length;
@@ -372,35 +404,76 @@
 
     if (visible.length === 0) {
       const msg = currentFilter === 'paid'
-        ? '<strong>No paid debts yet</strong>Once you mark one as paid, it will show up here.'
+        ? '<strong>No paid debts yet</strong>Once a debt is fully paid, it will show up here.'
         : '<strong>Nothing unpaid</strong>Everything on your books is settled ✅';
       listEl.innerHTML = `<div class="empty">${msg}</div>`;
       return;
     }
 
-    listEl.innerHTML = visible.map(debt => `
+    listEl.innerHTML = visible.map(debt => {
+      const owed = remaining(debt);
+      const isPartial = !debt.paid && debt.amountPaid > 0;
+      const showPaymentForm = paymentFormOpenFor.has(debt.id);
+
+      return `
       <div class="stub ${debt.paid ? 'is-paid' : ''}">
         ${debt.paid ? '<div class="stamp">PAID</div>' : ''}
         <div class="stub-top">
           <div class="stub-name">${escapeHtml(debt.customerName)}</div>
           <div class="stub-amount">₦${debt.amount.toLocaleString()}</div>
         </div>
+        ${isPartial ? `<div class="stub-partial-note">₦${debt.amountPaid.toLocaleString()} paid — ₦${owed.toLocaleString()} left</div>` : ''}
         <hr class="stub-divider">
         ${debt.paid
           ? ''
-          : `
-            <div class="stub-actions">
-              <a class="btn btn-remind" href="${buildWhatsAppLink(debt)}" target="_blank">Remind</a>
-              <button class="btn btn-paid" onclick="markPaid('${debt.id}')">Mark Paid</button>
-            </div>
-          `
+          : showPaymentForm
+            ? `
+              <div class="payment-form">
+                <input class="payment-input" type="number" id="payInput-${debt.id}" placeholder="₦ amount" />
+                <button class="btn btn-remind" style="flex: 0 0 auto;" onclick="submitPayment('${debt.id}', ${owed})">Save</button>
+              </div>
+            `
+            : `
+              <div class="stub-actions">
+                <a class="btn btn-remind" href="${buildWhatsAppLink(debt)}" target="_blank">Remind</a>
+                <button class="btn btn-paid" onclick="openPaymentForm('${debt.id}')">Log Payment</button>
+                <button class="btn btn-delete" onclick="deleteDebt('${debt.id}', '${escapeHtml(debt.customerName)}')" title="Delete">🗑</button>
+              </div>
+            `
         }
       </div>
-    `).join('');
+    `;
+    }).join('');
   }
 
-  async function markPaid(id) {
-    await fetch(`/api/debts/${id}/mark-paid`, { method: 'POST' });
+  function openPaymentForm(id) {
+    paymentFormOpenFor.add(id);
+    render();
+    setTimeout(() => {
+      const input = document.getElementById(`payInput-${id}`);
+      if (input) input.focus();
+    }, 0);
+  }
+
+  async function submitPayment(id, owed) {
+    const input = document.getElementById(`payInput-${id}`);
+    const amount = Number(input.value);
+    if (!amount || amount <= 0 || amount > owed) {
+      alert(`Enter an amount between 1 and ${owed.toLocaleString()}`);
+      return;
+    }
+    await fetch(`/api/debts/${id}/log-payment`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: accessToken, amount }),
+    });
+    paymentFormOpenFor.delete(id);
+    loadDebts();
+  }
+
+  async function deleteDebt(id, customerName) {
+    if (!confirm(`Delete this debt for ${customerName}? This can't be undone.`)) return;
+    await fetch(`/api/debts/${id}?token=${accessToken}`, { method: 'DELETE' });
     loadDebts();
   }
 
