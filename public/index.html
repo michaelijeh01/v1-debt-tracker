@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>V1 Debt Tracker — Stop Losing Track of Who Owes Your Business</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Carlito:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #0A0F1F;
+    --midnight: #050914;
+    --blue: #0066FF;
+    --blue-light: #00A8FF;
+    --white: #FFFFFF;
+    --soft-white: #F5F7FA;
+    --gray: #9CA3AF;
+    --border-light: #E5E7EB;
+    --dark-text: #111827;
+    --success: #16A34A;
+    --warning: #F59E0B;
+    --danger: #DC2626;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Carlito', -apple-system, sans-serif;
+    color: var(--dark-text);
+    background: var(--white);
+    line-height: 1.5;
+  }
+
+  a { text-decoration: none; color: inherit; }
+  img { max-width: 100%; display: block; }
+
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  /* ---------- NAVBAR ---------- */
+  header {
+    background: var(--navy);
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+  nav.wrap {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 76px;
+  }
+  .logo-mark {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .logo-mark svg { height: 34px; width: auto; }
+  .logo-mark span {
+    color: var(--white);
+    font-weight: 700;
+    font-size: 19px;
+  }
+  .logo-mark span b { color: var(--blue-light); }
+
+  .nav-links {
+    display: flex;
+    gap: 34px;
+    list-style: none;
+  }
+  .nav-links a {
+    color: #C7CDD9;
+    font-size: 15px;
+    transition: color .15s;
+  }
+  .nav-links a:hover { color: var(--white); }
+
+  .nav-actions { display: flex; align-items: center; gap: 18px; }
+  .nav-actions .login-link { color: #C7CDD9; font-size: 15px; }
+  .btn {
+    display: inline-block;
+    font-weight: 700;
+    font-size: 15px;
+    padding: 12px 24px;
+    border-radius: 10px;
+    cursor: pointer;
+    border: none;
+  }
+  .btn-primary {
+    background: var(--blue);
+    color: var(--white);
+  }
+  .btn-primary:hover { background: #0052CC; }
+  .btn-outline {
+    background: transparent;
+    color: var(--white);
+    border: 1.5px solid #2A3348;
+  }
+  .btn-outline:hover { border-color: var(--blue-light); }
+
+  .mobile-nav-toggle { display: none; }
+
+  /* ---------- HERO ---------- */
+  .hero {
+    background: var(--navy);
+    padding: 84px 0 100px;
+    overflow: hidden;
+    position: relative;
+  }
+  .hero::before {
+    content: "";
+    position: absolute;
+    top: -120px; right: -160px;
+    width: 520px; height: 520px;
+    background: radial-gradient(circle, rgba(0,102,255,0.18), transparent 65%);
+  }
+  .hero-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 60px;
+    align-items: center;
+    position: relative;
+  }
+  .hero h1 {
+    color: var(--white);
+    font-size: 46px;
+    font-weight: 700;
+    line-height: 1.12;
+    letter-spacing: -0.5px;
+  }
+  .hero p.lede {
+    color: #AEB6C4;
+    font-size: 17px;
+    margin-top: 22px;
+    max-width: 480px;
+    line-height: 1.6;
+  }
+  .hero-actions {
+    display: flex;
+    gap: 14px;
+    margin-top: 32px;
+  }
+  .hero-actions .btn { padding: 15px 26px; font-size: 15.5px; }
+
+  /* ---------- Dashboard mockup (real UI structure, not a stock photo) ---------- */
+  .dash-mock {
+    background: #111827;
+    border: 1px solid #232B3D;
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 30px 60px rgba(0,0,0,0.45);
+  }
+  .dash-mock-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 18px;
+  }
+  .dash-mock-header .greet { color: var(--white); font-weight: 700; font-size: 16px; }
+  .dash-mock-header .date { color: var(--gray); font-size: 12px; }
+  .dash-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+  .dash-stat {
+    background: #172033;
+    border: 1px solid #232B3D;
+    border-radius: 10px;
+    padding: 12px;
+  }
+  .dash-stat .label { color: var(--gray); font-size: 10.5px; margin-bottom: 4px; }
+  .dash-stat .value { color: var(--white); font-weight: 700; font-size: 15px; }
+  .dash-stat.owed .value { color: var(--blue-light); }
+  .dash-stat.paid .value { color: var(--success); }
+  .dash-stat.overdue .value { color: var(--danger); }
+  .dash-rows { display: flex; flex-direction: column; gap: 8px; }
+  .dash-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #172033;
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .dash-row .who { color: var(--white); font-size: 13.5px; font-weight: 700; }
+  .dash-row .amt { color: var(--gray); font-size: 12.5px; }
+  .pill {
+    font-size: 10.5px;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 20px;
+  }
+  .pill-paid { background: rgba(22,163,74,0.15); color: var(--success); }
+  .pill-partial { background: rgba(245,158,11,0.15); color: var(--warning); }
+  .pill-overdue { background: rgba(220,38,38,0.15); color: var(--danger); }
+
+  /* ---------- Section shared ---------- */
+  section { padding: 88px 0; }
+  .section-soft { background: var(--soft-white); }
+  h2.section-title {
+    font-size: 32px;
+    font-weight: 700;
+    letter-spacing: -0.4px;
+    max-width: 620px;
+  }
+  p.section-sub {
+    color: #5B6472;
+    font-size: 16px;
+    margin-top: 14px;
+    max-width: 560px;
+    line-height: 1.6;
+  }
+
+  /* ---------- Problem ---------- */
+  .problem-list {
+    margin-top: 40px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px 40px;
+  }
+  .problem-item {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border-light);
+  }
+  .problem-item .x {
+    color: var(--danger);
+    font-weight: 700;
+    font-size: 18px;
+    line-height: 1;
+  }
+  .problem-item p { font-size: 15.5px; color: var(--dark-text); }
+  .problem-resolve {
+    margin-top: 32px;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--navy);
+  }
+
+  /* ---------- How it works ---------- */
+  .steps {
+    margin-top: 44px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 28px;
+  }
+  .step .num {
+    font-size: 34px;
+    font-weight: 700;
+    color: var(--blue);
+    line-height: 1;
+    margin-bottom: 14px;
+  }
+  .step h3 { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
+  .step p { font-size: 14px; color: #5B6472; line-height: 1.55; }
+
+  /* ---------- Features ---------- */
+  .feature-grid {
+    margin-top: 44px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--border-light);
+    border: 1px solid var(--border-light);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .feature-card {
+    background: var(--white);
+    padding: 30px 26px;
+  }
+  .feature-card h3 { font-size: 16.5px; font-weight: 700; margin-bottom: 8px; }
+  .feature-card p { font-size: 14px; color: #5B6472; line-height: 1.55; }
+  .feature-card .dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--blue); margin-bottom: 16px;
+  }
+
+  /* ---------- Dashboard preview (dark) ---------- */
+  .dash-preview-section { background: var(--navy); }
+  .dash-preview-section h2.section-title,
+  .dash-preview-section p.section-sub { color: var(--white); }
+  .dash-preview-section p.section-sub { color: #AEB6C4; }
+  .overview-stats {
+    margin-top: 44px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+  .overview-stat {
+    background: #111827;
+    border: 1px solid #232B3D;
+    border-radius: 12px;
+    padding: 22px;
+  }
+  .overview-stat .label { color: var(--gray); font-size: 13px; margin-bottom: 8px; }
+  .overview-stat .value { color: var(--white); font-size: 24px; font-weight: 700; }
+  .overview-stat.owed .value { color: var(--blue-light); }
+  .overview-stat.paid .value { color: var(--success); }
+  .overview-stat.overdue .value { color: var(--danger); }
+
+  /* ---------- Who it's for ---------- */
+  .audience-grid {
+    margin-top: 40px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+  }
+  .audience-chip {
+    border: 1px solid var(--border-light);
+    border-radius: 10px;
+    padding: 18px 16px;
+    font-size: 14.5px;
+    font-weight: 700;
+    color: var(--dark-text);
+  }
+
+  /* ---------- Pricing ---------- */
+  .pricing-grid {
+    margin-top: 44px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    max-width: 760px;
+  }
+  .price-card {
+    border: 1.5px solid var(--border-light);
+    border-radius: 14px;
+    padding: 32px;
+  }
+  .price-card.featured {
+    border-color: var(--blue);
+    background: linear-gradient(180deg, rgba(0,102,255,0.04), transparent);
+  }
+  .price-card h3 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+  .price-card .tag { font-size: 13px; color: var(--gray); margin-bottom: 20px; }
+  .price-card ul { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+  .price-card li { font-size: 14.5px; color: #374151; display: flex; gap: 8px; }
+  .price-card li::before { content: "✓"; color: var(--success); font-weight: 700; }
+  .price-note {
+    margin-top: 18px;
+    font-size: 13px;
+    color: var(--gray);
+    font-style: italic;
+  }
+
+  /* ---------- Trust ---------- */
+  .trust-grid {
+    margin-top: 40px;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px 40px;
+  }
+  .trust-item { display: flex; gap: 12px; }
+  .trust-item .check { color: var(--success); font-weight: 700; font-size: 18px; }
+  .trust-item p { font-size: 15px; }
+
+  /* ---------- Final CTA ---------- */
+  .final-cta {
+    background: var(--midnight);
+    text-align: center;
+    padding: 100px 0;
+  }
+  .final-cta h2 {
+    color: var(--white);
+    font-size: 34px;
+    font-weight: 700;
+    max-width: 640px;
+    margin: 0 auto 30px;
+    line-height: 1.25;
+  }
+
+  /* ---------- Footer ---------- */
+  footer {
+    background: var(--midnight);
+    border-top: 1px solid #1a2133;
+    padding: 40px 0;
+  }
+  .footer-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+  .footer-links { display: flex; gap: 24px; list-style: none; }
+  .footer-links a { color: var(--gray); font-size: 13.5px; }
+  .footer-copy { color: #4B5563; font-size: 13px; }
+
+  @media (max-width: 860px) {
+    .nav-links, .nav-actions .login-link { display: none; }
+    .hero-grid { grid-template-columns: 1fr; }
+    .hero h1 { font-size: 32px; }
+    .problem-list, .steps, .feature-grid, .overview-stats, .audience-grid, .pricing-grid, .trust-grid {
+      grid-template-columns: 1fr 1fr;
+    }
+    .steps { grid-template-columns: 1fr 1fr; }
+    .dash-stats { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 560px) {
+    .problem-list, .feature-grid, .overview-stats, .audience-grid, .pricing-grid, .trust-grid, .steps, .dash-stats {
+      grid-template-columns: 1fr;
+    }
+    .hero h1 { font-size: 28px; }
+    section { padding: 60px 0; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ NAVBAR ============ -->
+<header>
+  <nav class="wrap">
+    <div class="logo-mark">
+      <svg viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="v1Blue" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#0066FF"/>
+            <stop offset="100%" stop-color="#00A8FF"/>
+          </linearGradient>
+          <linearGradient id="swooshGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#0066FF"/>
+            <stop offset="100%" stop-color="#00A8FF"/>
+          </linearGradient>
+        </defs>
+        <path d="M 108 405 A 215 85 0 0 0 495 395" fill="none" stroke="url(#swooshGrad)" stroke-width="20" stroke-linecap="round" opacity="0.9"/>
+        <rect x="438" y="370" width="22" height="50" rx="4" fill="#00A8FF" opacity="0.85"/>
+        <rect x="466" y="345" width="22" height="75" rx="4" fill="#0066FF" opacity="0.95"/>
+        <path d="M 145 150 L 270 420 L 305 420 L 220 150 Z" fill="#FFFFFF"/>
+        <path d="M 390 150 L 305 420 L 270 420 L 320 260 Z" fill="#FFFFFF"/>
+        <path d="M 355 175 L 400 128 L 428 128 L 428 420 L 372 420 L 372 200 Z" fill="url(#v1Blue)"/>
+      </svg>
+      <span><b>V1</b> Debt Tracker</span>
+    </div>
+    <ul class="nav-links">
+      <li><a href="#home">Home</a></li>
+      <li><a href="#features">Features</a></li>
+      <li><a href="#how-it-works">How It Works</a></li>
+      <li><a href="#pricing">Pricing</a></li>
+      <li><a href="#about">About</a></li>
+    </ul>
+    <div class="nav-actions">
+      <a href="/login.html" class="login-link">Log In</a>
+      <a href="/signup.html" class="btn btn-primary">Get Started</a>
+    </div>
+  </nav>
+</header>
+
+<!-- ============ HERO ============ -->
+<section class="hero" id="home">
+  <div class="wrap hero-grid">
+    <div>
+      <h1>Stop Losing Track of Who Owes Your Business.</h1>
+      <p class="lede">V1 helps you record customer debts, track partial payments, monitor outstanding balances, and send payment reminders — all in one place.</p>
+      <div class="hero-actions">
+        <a href="/signup.html" class="btn btn-primary">Get Started Free</a>
+        <a href="#how-it-works" class="btn btn-outline">See How It Works</a>
+      </div>
+    </div>
+    <div class="dash-mock">
+      <div class="dash-mock-header">
+        <span class="greet">Your Business at a Glance</span>
+        <span class="date">Today</span>
+      </div>
+      <div class="dash-stats">
+        <div class="dash-stat owed"><div class="label">Total Owed</div><div class="value">₦485,000</div></div>
+        <div class="dash-stat paid"><div class="label">Collected</div><div class="value">₦210,000</div></div>
+        <div class="dash-stat"><div class="label">Outstanding</div><div class="value">₦275,000</div></div>
+        <div class="dash-stat overdue"><div class="label">Overdue</div><div class="value">₦155,000</div></div>
+      </div>
+      <div class="dash-rows">
+        <div class="dash-row"><span class="who">Chidi's Fashion</span><span class="amt">₦50,000</span><span class="pill pill-paid">PAID</span></div>
+        <div class="dash-row"><span class="who">Adaeze Stores</span><span class="amt">₦120,000 of ₦200,000</span><span class="pill pill-partial">PARTIAL</span></div>
+        <div class="dash-row"><span class="who">Musa Distributors</span><span class="amt">₦155,000</span><span class="pill pill-overdue">OVERDUE</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ THE PROBLEM ============ -->
+<section id="about">
+  <div class="wrap">
+    <h2 class="section-title">Still using notebooks to track customer debts?</h2>
+    <div class="problem-list">
+      <div class="problem-item"><span class="x">✕</span><p>Customer records get lost</p></div>
+      <div class="problem-item"><span class="x">✕</span><p>You forget who owes you</p></div>
+      <div class="problem-item"><span class="x">✕</span><p>Partial payments become confusing</p></div>
+      <div class="problem-item"><span class="x">✕</span><p>You forget to follow up</p></div>
+      <div class="problem-item"><span class="x">✕</span><p>You don't know your total outstanding debt</p></div>
+    </div>
+    <p class="problem-resolve">V1 puts everything in one place.</p>
+  </div>
+</section>
+
+<!-- ============ HOW IT WORKS ============ -->
+<section class="section-soft" id="how-it-works">
+  <div class="wrap">
+    <h2 class="section-title">How V1 Works</h2>
+    <p class="section-sub">Four steps. No training required.</p>
+    <div class="steps">
+      <div class="step"><div class="num">1</div><h3>Add Customer</h3><p>Name, phone number, and amount owed.</p></div>
+      <div class="step"><div class="num">2</div><h3>Track Payments</h3><p>Record full or partial payments and watch the balance update.</p></div>
+      <div class="step"><div class="num">3</div><h3>Send Reminder</h3><p>Send a ready-made payment reminder through WhatsApp.</p></div>
+      <div class="step"><div class="num">4</div><h3>Mark as Paid</h3><p>Once the customer clears the debt, mark it as paid.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FEATURES ============ -->
+<section id="features">
+  <div class="wrap">
+    <h2 class="section-title">Everything you need, nothing you don't</h2>
+    <div class="feature-grid">
+      <div class="feature-card"><div class="dot"></div><h3>Customer Management</h3><p>Keep customer information organized in one place.</p></div>
+      <div class="feature-card"><div class="dot"></div><h3>Debt Tracking</h3><p>Know exactly how much each customer owes, at any time.</p></div>
+      <div class="feature-card"><div class="dot"></div><h3>Partial Payments</h3><p>Record ₦20,000, ₦50,000, or any amount without losing the original record.</p></div>
+      <div class="feature-card"><div class="dot"></div><h3>Payment Reminders</h3><p>Send customers a payment reminder in one tap, through WhatsApp.</p></div>
+      <div class="feature-card"><div class="dot"></div><h3>Paid / Unpaid / Overdue</h3><p>See the state of every debt instantly, at a glance.</p></div>
+      <div class="feature-card"><div class="dot"></div><h3>Business Dashboard</h3><p>See your total outstanding money the moment you log in.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DASHBOARD PREVIEW ============ -->
+<section class="dash-preview-section">
+  <div class="wrap">
+    <h2 class="section-title">Your Business at a Glance</h2>
+    <p class="section-sub">Everything you're owed, everything you've collected, in one screen.</p>
+    <div class="overview-stats">
+      <div class="overview-stat owed"><div class="label">Total Owed</div><div class="value">₦485,000</div></div>
+      <div class="overview-stat paid"><div class="label">Collected</div><div class="value">₦210,000</div></div>
+      <div class="overview-stat"><div class="label">Outstanding</div><div class="value">₦275,000</div></div>
+      <div class="overview-stat overdue"><div class="label">Overdue</div><div class="value">₦155,000</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ WHO IT'S FOR ============ -->
+<section class="section-soft">
+  <div class="wrap">
+    <h2 class="section-title">Built for businesses that sell today and collect tomorrow.</h2>
+    <div class="audience-grid">
+      <div class="audience-chip">🏗 Building material suppliers</div>
+      <div class="audience-chip">🛒 Wholesalers</div>
+      <div class="audience-chip">💊 Pharmacies</div>
+      <div class="audience-chip">👗 Fashion businesses</div>
+      <div class="audience-chip">🔧 Service businesses</div>
+      <div class="audience-chip">🍚 Food suppliers</div>
+      <div class="audience-chip">📦 Distributors</div>
+      <div class="audience-chip">✂️ Tailors &amp; artisans</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PRICING ============ -->
+<section id="pricing">
+  <div class="wrap">
+    <h2 class="section-title">Simple pricing</h2>
+    <p class="section-sub">We're early — pricing may evolve as we learn from real businesses using V1.</p>
+    <div class="pricing-grid">
+      <div class="price-card">
+        <h3>Free</h3>
+        <div class="tag">Get started with no cost</div>
+        <ul>
+          <li>Customer management</li>
+          <li>Debt tracking</li>
+          <li>Payment tracking</li>
+          <li>Basic reminders</li>
+        </ul>
+      </div>
+      <div class="price-card featured">
+        <h3>Pro</h3>
+        <div class="tag">For growing businesses</div>
+        <ul>
+          <li>More customers</li>
+          <li>Advanced reports</li>
+          <li>Business branding on reminders</li>
+          <li>Analytics</li>
+          <li>More automation</li>
+        </ul>
+      </div>
+    </div>
+    <p class="price-note">Pricing isn't locked in yet — we're listening to our early users first.</p>
+  </div>
+</section>
+
+<!-- ============ TRUST ============ -->
+<section class="section-soft">
+  <div class="wrap">
+    <h2 class="section-title">Your business records belong to you.</h2>
+    <div class="trust-grid">
+      <div class="trust-item"><span class="check">✓</span><p>Secure, private account access</p></div>
+      <div class="trust-item"><span class="check">✓</span><p>Protected customer information</p></div>
+      <div class="trust-item"><span class="check">✓</span><p>Reliable, always-on database</p></div>
+      <div class="trust-item"><span class="check">✓</span><p>Only you can see your data</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FINAL CTA ============ -->
+<section class="final-cta">
+  <div class="wrap">
+    <h2>Know who owes you. Know how much. Get paid.</h2>
+    <a href="/signup.html" class="btn btn-primary">Start Using V1 →</a>
+  </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer>
+  <div class="wrap footer-row">
+    <div class="logo-mark">
+      <svg viewBox="0 0 600 600" width="28" height="28" xmlns="http://www.w3.org/2000/svg">
+        <path d="M 108 405 A 215 85 0 0 0 495 395" fill="none" stroke="#0066FF" stroke-width="20" stroke-linecap="round" opacity="0.9"/>
+        <path d="M 145 150 L 270 420 L 305 420 L 220 150 Z" fill="#FFFFFF"/>
+        <path d="M 390 150 L 305 420 L 270 420 L 320 260 Z" fill="#FFFFFF"/>
+        <path d="M 355 175 L 400 128 L 428 128 L 428 420 L 372 420 L 372 200 Z" fill="#0066FF"/>
+      </svg>
+      <span style="font-size:14px; color:#9CA3AF;">V1 Debt Tracker</span>
+    </div>
+    <ul class="footer-links">
+      <li><a href="#home">Home</a></li>
+      <li><a href="#features">Features</a></li>
+      <li><a href="#pricing">Pricing</a></li>
+      <li><a href="#about">About</a></li>
+    </ul>
+    <span class="footer-copy">© 2026 V1 Debt Tracker</span>
+  </div>
+</footer>
+
+</body>
+</html>
