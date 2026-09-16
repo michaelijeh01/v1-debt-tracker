@@ -1,20 +1,19 @@
 const { JSONFilePreset } = require('lowdb/node');
 const { Redis } = require('@upstash/redis');
 
-const DEFAULT_STATE = { debts: [], owners: {}, allowedUsers: [], accessRequests: [] };
+const DEFAULT_STATE = {
+  debts: [],
+  owners: {},           // keyed by ownerId (Telegram chatId number, OR "web_<uuid>" string)
+  allowedUsers: [],
+  accessRequests: [],
+  webUsersByEmail: {},   // email -> ownerId
+};
 const STATE_KEY = 'v1:state';
 
 let dbInstance = null;
 
-// If UPSTASH_REDIS_REST_URL is set (on Render, in production), we use
-// Upstash — a database reached over plain HTTPS, same as any normal web
-// request. This avoids the raw TLS socket handshake that kept failing
-// with MongoDB on this network.
-// If it's NOT set (on your PC, for local testing), we fall back to the
-// simple local db.json file, so local testing needs no setup.
 async function getDb() {
   if (dbInstance) return dbInstance;
-
   if (process.env.UPSTASH_REDIS_REST_URL) {
     dbInstance = await createUpstashDb();
   } else {
@@ -41,9 +40,10 @@ async function createUpstashDb() {
     data = { ...DEFAULT_STATE };
     await redis.set(STATE_KEY, data);
   }
-  // Fill in any fields older data might be missing (safe migration)
   for (const key of Object.keys(DEFAULT_STATE)) {
-    if (data[key] === undefined) data[key] = DEFAULT_STATE[key];
+    if (data[key] === undefined) {
+      data[key] = Array.isArray(DEFAULT_STATE[key]) ? [] : {};
+    }
   }
 
   return {
@@ -59,7 +59,7 @@ async function createLocalFileDb() {
   let changed = false;
   for (const key of Object.keys(DEFAULT_STATE)) {
     if (local.data[key] === undefined) {
-      local.data[key] = DEFAULT_STATE[key];
+      local.data[key] = Array.isArray(DEFAULT_STATE[key]) ? [] : {};
       changed = true;
     }
   }

@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard — V1 Debt Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Carlito:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #0A0F1F; --blue: #0066FF; --blue-light: #00A8FF;
+    --white: #FFFFFF; --soft-white: #F5F7FA; --gray: #9CA3AF;
+    --border-light: #E5E7EB; --dark-text: #111827;
+    --success: #16A34A; --warning: #F59E0B; --danger: #DC2626;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Carlito', -apple-system, sans-serif; background: var(--soft-white); color: var(--dark-text); }
+
+  header {
+    background: var(--navy);
+    padding: 16px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .logo-row { display: flex; align-items: center; gap: 10px; }
+  .logo-row svg { height: 28px; width: auto; }
+  .logo-row span { font-weight: 700; font-size: 16px; color: var(--white); }
+  .logo-row span b { color: var(--blue-light); }
+  .header-right { display: flex; align-items: center; gap: 16px; }
+  .biz-name { color: #C7CDD9; font-size: 14px; }
+  .logout-btn {
+    background: transparent; border: 1.5px solid #2A3348; color: var(--white);
+    padding: 8px 16px; border-radius: 8px; font-size: 13.5px; cursor: pointer; font-family: inherit;
+  }
+
+  .wrap { max-width: 900px; margin: 0 auto; padding: 28px 20px 60px; }
+
+  .stats { display: flex; gap: 12px; margin-bottom: 24px; }
+  .stat { flex: 1; background: var(--white); border: 1px solid var(--border-light); border-radius: 12px; padding: 16px 18px; }
+  .stat .label { font-size: 12px; color: var(--gray); margin-bottom: 6px; }
+  .stat .value { font-size: 22px; font-weight: 700; }
+  .stat.owed .value { color: var(--blue); }
+
+  .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; gap: 10px; flex-wrap: wrap; }
+  .tabs { display: flex; gap: 6px; }
+  .tab {
+    background: var(--white); border: 1px solid var(--border-light); color: var(--gray);
+    padding: 8px 16px; border-radius: 8px; font-size: 13.5px; font-weight: 700; cursor: pointer; font-family: inherit;
+  }
+  .tab.active { background: var(--blue); border-color: var(--blue); color: var(--white); }
+  .btn-primary {
+    background: var(--blue); color: var(--white); border: none; padding: 10px 18px;
+    border-radius: 8px; font-weight: 700; font-size: 14px; cursor: pointer; font-family: inherit;
+  }
+  .btn-primary:hover { background: #0052CC; }
+
+  .empty {
+    background: var(--white); border: 1px dashed var(--border-light); border-radius: 12px;
+    padding: 40px 20px; text-align: center; color: var(--gray); font-size: 14px;
+  }
+
+  .debt-card { background: var(--white); border: 1px solid var(--border-light); border-radius: 12px; padding: 16px 18px; margin-bottom: 10px; }
+  .debt-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  .debt-name { font-weight: 700; font-size: 15.5px; }
+  .debt-amount { font-weight: 700; font-size: 16px; font-family: monospace; }
+  .debt-note { font-size: 12.5px; color: var(--warning); margin-top: 3px; font-weight: 700; }
+  .pill { font-size: 10.5px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
+  .pill-paid { background: rgba(22,163,74,0.12); color: var(--success); }
+  .debt-actions { display: flex; gap: 8px; margin-top: 12px; }
+  .action-btn {
+    flex: 1; border: none; border-radius: 8px; padding: 9px; font-size: 13px; font-weight: 700;
+    cursor: pointer; font-family: inherit;
+  }
+  .action-remind { background: var(--success); color: white; text-decoration: none; text-align: center; display: inline-block; }
+  .action-pay { background: var(--soft-white); border: 1.5px solid var(--border-light); color: var(--dark-text); }
+  .action-delete { flex: 0 0 auto; width: 40px; background: var(--soft-white); border: 1.5px solid var(--border-light); color: var(--danger); }
+  .pay-form { display: flex; gap: 8px; margin-top: 12px; }
+  .pay-input { flex: 1; border: 1.5px solid var(--border-light); border-radius: 8px; padding: 9px 10px; font-family: monospace; font-size: 14px; }
+
+  /* New debt modal */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(10,15,31,0.6);
+    align-items: center; justify-content: center; padding: 20px; z-index: 100;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--white); border-radius: 14px; padding: 28px; width: 100%; max-width: 380px;
+  }
+  .modal h2 { font-size: 18px; margin-bottom: 18px; }
+  .modal label { display: block; font-size: 13px; font-weight: 700; margin: 14px 0 6px; }
+  .modal input { width: 100%; padding: 11px 12px; border: 1.5px solid var(--border-light); border-radius: 8px; font-size: 14.5px; font-family: inherit; }
+  .modal-actions { display: flex; gap: 10px; margin-top: 22px; }
+  .modal-actions button { flex: 1; padding: 11px; border-radius: 8px; font-weight: 700; cursor: pointer; font-family: inherit; border: none; font-size: 14px; }
+  .modal-cancel { background: var(--soft-white); color: var(--dark-text); }
+  .modal-save { background: var(--blue); color: var(--white); }
+  .modal-error { color: var(--danger); font-size: 13px; margin-top: 10px; display: none; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-row">
+    <svg viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="v1Blue" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#0066FF"/><stop offset="100%" stop-color="#00A8FF"/>
+        </linearGradient>
+        <linearGradient id="swooshGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#0066FF"/><stop offset="100%" stop-color="#00A8FF"/>
+        </linearGradient>
+      </defs>
+      <path d="M 108 405 A 215 85 0 0 0 495 395" fill="none" stroke="url(#swooshGrad)" stroke-width="20" stroke-linecap="round" opacity="0.9"/>
+      <rect x="438" y="370" width="22" height="50" rx="4" fill="#00A8FF" opacity="0.85"/>
+      <rect x="466" y="345" width="22" height="75" rx="4" fill="#0066FF" opacity="0.95"/>
+      <path d="M 145 150 L 270 420 L 305 420 L 220 150 Z" fill="#FFFFFF"/>
+      <path d="M 390 150 L 305 420 L 270 420 L 320 260 Z" fill="#FFFFFF"/>
+      <path d="M 355 175 L 400 128 L 428 128 L 428 420 L 372 420 L 372 200 Z" fill="url(#v1Blue)"/>
+    </svg>
+    <span><b>V1</b> Debt Tracker</span>
+  </div>
+  <div class="header-right">
+    <span class="biz-name" id="bizName"></span>
+    <button class="logout-btn" onclick="logout()">Log Out</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="stats">
+    <div class="stat owed"><div class="label">Outstanding</div><div class="value" id="totalOutstanding">₦0</div></div>
+    <div class="stat"><div class="label">Unpaid</div><div class="value" id="unpaidCount">0</div></div>
+  </div>
+
+  <div class="toolbar">
+    <div class="tabs">
+      <button class="tab active" id="tabAll" onclick="setFilter('all')">All</button>
+      <button class="tab" id="tabUnpaid" onclick="setFilter('unpaid')">Unpaid</button>
+      <button class="tab" id="tabPaid" onclick="setFilter('paid')">Paid</button>
+    </div>
+    <button class="btn-primary" onclick="openModal()">+ New Debt</button>
+  </div>
+
+  <div id="debtList"><div class="empty">Loading...</div></div>
+</div>
+
+<!-- New Debt Modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h2>Log a new debt</h2>
+    <form id="newDebtForm">
+      <label>Customer name</label>
+      <input type="text" id="customerName" required>
+      <label>Phone number</label>
+      <input type="tel" id="customerPhone" placeholder="08031234567" required>
+      <label>Amount owed (₦)</label>
+      <input type="number" id="customerAmount" required min="1">
+      <div class="modal-error" id="modalError"></div>
+      <div class="modal-actions">
+        <button type="button" class="modal-cancel" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="modal-save">Save Debt</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  let allDebts = [];
+  let currentFilter = 'all';
+  const paymentFormOpenFor = new Set();
+
+  async function init() {
+    const meRes = await fetch('/api/auth/me');
+    const me = await meRes.json();
+    if (!me.loggedIn) {
+      window.location.href = '/login.html';
+      return;
+    }
+    document.getElementById('bizName').textContent = me.businessName || 'Your Business';
+    loadDebts();
+  }
+
+  function remaining(debt) { return debt.amount - (debt.amountPaid || 0); }
+
+  async function loadDebts() {
+    const res = await fetch('/api/web/debts');
+    if (res.status === 401) { window.location.href = '/login.html'; return; }
+    allDebts = await res.json();
+    render();
+  }
+
+  function setFilter(f) {
+    currentFilter = f;
+    document.getElementById('tabAll').classList.toggle('active', f === 'all');
+    document.getElementById('tabUnpaid').classList.toggle('active', f === 'unpaid');
+    document.getElementById('tabPaid').classList.toggle('active', f === 'paid');
+    render();
+  }
+
+  function buildWhatsAppLink(debt, businessName) {
+    const owed = remaining(debt);
+    const greeting = businessName ? `Hello ${debt.customerName}, this is ${businessName}.` : `Hello ${debt.customerName},`;
+    const message = `${greeting} Just a friendly reminder that ₦${owed.toLocaleString()} is still outstanding on your account. You can complete payment whenever convenient — thank you for your continued patronage! 🙏`;
+    return `https://wa.me/${debt.phone}?text=${encodeURIComponent(message)}`;
+  }
+
+  function render() {
+    const businessName = document.getElementById('bizName').textContent;
+    const listEl = document.getElementById('debtList');
+    const unpaid = allDebts.filter(d => !d.paid);
+    const total = unpaid.reduce((s, d) => s + remaining(d), 0);
+    document.getElementById('totalOutstanding').textContent = '₦' + total.toLocaleString();
+    document.getElementById('unpaidCount').textContent = unpaid.length;
+
+    if (allDebts.length === 0) {
+      listEl.innerHTML = '<div class="empty">No debts logged yet. Tap "+ New Debt" to add your first one.</div>';
+      return;
+    }
+    const visible = currentFilter === 'all' ? allDebts : currentFilter === 'paid' ? allDebts.filter(d => d.paid) : allDebts.filter(d => !d.paid);
+    if (visible.length === 0) {
+      listEl.innerHTML = `<div class="empty">${currentFilter === 'paid' ? 'No paid debts yet.' : 'Nothing unpaid — all settled ✅'}</div>`;
+      return;
+    }
+
+    listEl.innerHTML = visible.map(debt => {
+      const owed = remaining(debt);
+      const isPartial = !debt.paid && debt.amountPaid > 0;
+      const showForm = paymentFormOpenFor.has(debt.id);
+      return `
+      <div class="debt-card">
+        <div class="debt-top">
+          <div class="debt-name">${escapeHtml(debt.customerName)}</div>
+          <div class="debt-amount">${debt.paid ? '<span class=\"pill pill-paid\">PAID</span>' : '₦' + owed.toLocaleString()}</div>
+        </div>
+        ${isPartial ? `<div class="debt-note">₦${debt.amountPaid.toLocaleString()} paid of ₦${debt.amount.toLocaleString()} total</div>` : ''}
+        ${debt.paid ? '' : showForm ? `
+          <div class="pay-form">
+            <input class="pay-input" type="number" id="payInput-${debt.id}" placeholder="₦ amount">
+            <button class="action-btn action-pay" onclick="submitPayment('${debt.id}', ${owed})">Save</button>
+          </div>
+        ` : `
+          <div class="debt-actions">
+            <a class="action-btn action-remind" href="${buildWhatsAppLink(debt, businessName)}" target="_blank">Remind</a>
+            <button class="action-btn action-pay" onclick="openPaymentForm('${debt.id}')">Log Payment</button>
+            <button class="action-btn action-delete" onclick="deleteDebt('${debt.id}','${escapeHtml(debt.customerName)}')">🗑</button>
+          </div>
+        `}
+      </div>`;
+    }).join('');
+  }
+
+  function openPaymentForm(id) { paymentFormOpenFor.add(id); render(); }
+
+  async function submitPayment(id, owed) {
+    const input = document.getElementById(`payInput-${id}`);
+    const amount = Number(input.value);
+    if (!amount || amount <= 0 || amount > owed) { alert(`Enter an amount between 1 and ${owed.toLocaleString()}`); return; }
+    await fetch(`/api/web/debts/${id}/log-payment`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount }),
+    });
+    paymentFormOpenFor.delete(id);
+    loadDebts();
+  }
+
+  async function deleteDebt(id, name) {
+    if (!confirm(`Delete this debt for ${name}? This can't be undone.`)) return;
+    await fetch(`/api/web/debts/${id}`, { method: 'DELETE' });
+    loadDebts();
+  }
+
+  function openModal() { document.getElementById('modalOverlay').classList.add('open'); }
+  function closeModal() {
+    document.getElementById('modalOverlay').classList.remove('open');
+    document.getElementById('newDebtForm').reset();
+    document.getElementById('modalError').style.display = 'none';
+  }
+
+  document.getElementById('newDebtForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errorBox = document.getElementById('modalError');
+    errorBox.style.display = 'none';
+    try {
+      const res = await fetch('/api/web/debts', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerName: document.getElementById('customerName').value,
+          phone: document.getElementById('customerPhone').value,
+          amount: document.getElementById('customerAmount').value,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Something went wrong');
+      closeModal();
+      loadDebts();
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.style.display = 'block';
+    }
+  });
+
+  async function logout() {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    window.location.href = '/login.html';
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  init();
+</script>
+
+</body>
+</html>

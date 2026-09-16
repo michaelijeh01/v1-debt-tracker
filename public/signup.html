@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign Up — V1 Debt Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Carlito:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #0A0F1F; --blue: #0066FF; --blue-light: #00A8FF;
+    --white: #FFFFFF; --soft-white: #F5F7FA; --gray: #9CA3AF;
+    --border-light: #E5E7EB; --dark-text: #111827; --danger: #DC2626;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Carlito', -apple-system, sans-serif;
+    background: var(--navy);
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .card {
+    background: var(--white);
+    border-radius: 16px;
+    padding: 40px 36px;
+    width: 100%; max-width: 420px;
+    box-shadow: 0 30px 60px rgba(0,0,0,0.35);
+  }
+  .logo-row { display: flex; align-items: center; gap: 10px; margin-bottom: 28px; }
+  .logo-row svg { height: 30px; width: auto; }
+  .logo-row span { font-weight: 700; font-size: 17px; color: var(--dark-text); }
+  .logo-row span b { color: var(--blue); }
+  h1 { font-size: 22px; font-weight: 700; color: var(--dark-text); margin-bottom: 6px; }
+  p.sub { color: var(--gray); font-size: 14px; margin-bottom: 26px; }
+  label { display: block; font-size: 13.5px; font-weight: 700; color: var(--dark-text); margin-bottom: 6px; margin-top: 16px; }
+  input {
+    width: 100%; padding: 12px 14px; border: 1.5px solid var(--border-light);
+    border-radius: 9px; font-size: 15px; font-family: inherit; color: var(--dark-text);
+  }
+  input:focus { outline: none; border-color: var(--blue); }
+  .btn {
+    width: 100%; margin-top: 26px; padding: 13px; border: none; border-radius: 9px;
+    background: var(--blue); color: var(--white); font-weight: 700; font-size: 15.5px;
+    cursor: pointer; font-family: inherit;
+  }
+  .btn:hover { background: #0052CC; }
+  .btn:disabled { opacity: 0.6; cursor: default; }
+  .error {
+    background: #FEF2F2; color: var(--danger); border: 1px solid #FCA5A5;
+    padding: 10px 12px; border-radius: 8px; font-size: 13.5px; margin-top: 16px; display: none;
+  }
+  .foot { text-align: center; margin-top: 22px; font-size: 14px; color: var(--gray); }
+  .foot a { color: var(--blue); font-weight: 700; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="logo-row">
+    <svg viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="v1Blue" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#0066FF"/><stop offset="100%" stop-color="#00A8FF"/>
+        </linearGradient>
+        <linearGradient id="swooshGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#0066FF"/><stop offset="100%" stop-color="#00A8FF"/>
+        </linearGradient>
+      </defs>
+      <path d="M 108 405 A 215 85 0 0 0 495 395" fill="none" stroke="url(#swooshGrad)" stroke-width="20" stroke-linecap="round" opacity="0.9"/>
+      <rect x="438" y="370" width="22" height="50" rx="4" fill="#00A8FF" opacity="0.85"/>
+      <rect x="466" y="345" width="22" height="75" rx="4" fill="#0066FF" opacity="0.95"/>
+      <path d="M 145 150 L 270 420 L 305 420 L 220 150 Z" fill="#0A0F1F"/>
+      <path d="M 390 150 L 305 420 L 270 420 L 320 260 Z" fill="#0A0F1F"/>
+      <path d="M 355 175 L 400 128 L 428 128 L 428 420 L 372 420 L 372 200 Z" fill="url(#v1Blue)"/>
+    </svg>
+    <span><b>V1</b> Debt Tracker</span>
+  </div>
+
+  <h1>Create your account</h1>
+  <p class="sub">Start tracking who owes you — free, no card required.</p>
+
+  <form id="signupForm">
+    <label for="businessName">Business name</label>
+    <input type="text" id="businessName" placeholder="e.g. Chidi's Fashion" required>
+
+    <label for="email">Email</label>
+    <input type="email" id="email" placeholder="you@example.com" required>
+
+    <label for="password">Password</label>
+    <input type="password" id="password" placeholder="At least 6 characters" minlength="6" required>
+
+    <div class="error" id="errorBox"></div>
+
+    <button type="submit" class="btn" id="submitBtn">Create Account</button>
+  </form>
+
+  <p class="foot">Already have an account? <a href="/login.html">Log in</a></p>
+</div>
+
+<script>
+  const form = document.getElementById('signupForm');
+  const errorBox = document.getElementById('errorBox');
+  const submitBtn = document.getElementById('submitBtn');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errorBox.style.display = 'none';
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Creating account...';
+
+    try {
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessName: document.getElementById('businessName').value,
+          email: document.getElementById('email').value,
+          password: document.getElementById('password').value,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Something went wrong');
+      window.location.href = '/app.html';
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.style.display = 'block';
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Create Account';
+    }
+  });
+</script>
+
+</body>
+</html>
