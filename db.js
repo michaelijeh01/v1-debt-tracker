@@ -7,6 +7,7 @@ const DEFAULT_STATE = {
   allowedUsers: [],
   accessRequests: [],
   webUsersByEmail: {},   // email -> ownerId
+  pendingSignups: {},    // email -> { code, businessName, phone, passwordHash, expiresAt }
 };
 const STATE_KEY = 'v1:state';
 

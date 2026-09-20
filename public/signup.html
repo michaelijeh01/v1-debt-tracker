@@ -9,8 +9,8 @@
 <style>
   :root {
     --navy: #0A0F1F; --blue: #0066FF; --blue-light: #00A8FF;
-    --white: #FFFFFF; --soft-white: #F5F7FA; --gray: #9CA3AF;
-    --border-light: #E5E7EB; --dark-text: #111827; --danger: #DC2626;
+    --white: #FFFFFF; --gray: #9CA3AF; --border-light: #E5E7EB;
+    --dark-text: #111827; --danger: #DC2626; --success: #16A34A;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -52,6 +52,20 @@
   }
   .foot { text-align: center; margin-top: 22px; font-size: 14px; color: var(--gray); }
   .foot a { color: var(--blue); font-weight: 700; }
+
+  .pw-rules { margin-top: 10px; display: flex; flex-direction: column; gap: 4px; }
+  .pw-rule { font-size: 12.5px; color: var(--gray); display: flex; align-items: center; gap: 6px; }
+  .pw-rule.met { color: var(--success); }
+  .pw-rule .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border-light); }
+  .pw-rule.met .dot { background: var(--success); }
+
+  .otp-input {
+    text-align: center; font-size: 26px; letter-spacing: 10px; font-weight: 700;
+  }
+  .resend { display: block; text-align: center; margin-top: 14px; font-size: 13px; color: var(--blue); cursor: pointer; }
+
+  .step { display: none; }
+  .step.active { display: block; }
 </style>
 </head>
 <body>
@@ -77,47 +91,112 @@
     <span><b>V1</b> Debt Tracker</span>
   </div>
 
-  <h1>Create your account</h1>
-  <p class="sub">Start tracking who owes you — free, no card required.</p>
+  <!-- STEP 1: details -->
+  <div class="step active" id="step1">
+    <h1>Create your account</h1>
+    <p class="sub">Start tracking who owes you — free, no card required.</p>
 
-  <form id="signupForm">
-    <label for="businessName">Business name</label>
-    <input type="text" id="businessName" placeholder="e.g. Chidi's Fashion" required>
+    <form id="detailsForm">
+      <label for="businessName">Business name</label>
+      <input type="text" id="businessName" placeholder="e.g. Chidi's Fashion" required>
 
-    <label for="email">Email</label>
-    <input type="email" id="email" placeholder="you@example.com" required>
+      <label for="phone">Phone number</label>
+      <input type="tel" id="phone" placeholder="08031234567" required>
 
-    <label for="password">Password</label>
-    <input type="password" id="password" placeholder="At least 6 characters" minlength="6" required>
+      <label for="email">Email</label>
+      <input type="email" id="email" placeholder="you@example.com" required>
 
-    <div class="error" id="errorBox"></div>
+      <label for="password">Password</label>
+      <input type="password" id="password" placeholder="Create a strong password" required>
+      <div class="pw-rules">
+        <div class="pw-rule" id="ruleLen"><span class="dot"></span> At least 8 characters</div>
+        <div class="pw-rule" id="ruleUpper"><span class="dot"></span> One uppercase letter</div>
+        <div class="pw-rule" id="ruleNum"><span class="dot"></span> One number</div>
+        <div class="pw-rule" id="ruleSym"><span class="dot"></span> One symbol (e.g. ! @ # $)</div>
+      </div>
 
-    <button type="submit" class="btn" id="submitBtn">Create Account</button>
-  </form>
+      <div class="error" id="error1"></div>
+      <button type="submit" class="btn" id="submitBtn1">Send Verification Code</button>
+    </form>
+    <p class="foot">Already have an account? <a href="/login.html">Log in</a></p>
+  </div>
 
-  <p class="foot">Already have an account? <a href="/login.html">Log in</a></p>
+  <!-- STEP 2: OTP verification -->
+  <div class="step" id="step2">
+    <h1>Check your email</h1>
+    <p class="sub">We sent a 6-digit code to <b id="emailDisplay"></b></p>
+
+    <form id="otpForm">
+      <label for="otpCode">Verification code</label>
+      <input type="text" id="otpCode" class="otp-input" maxlength="6" inputmode="numeric" placeholder="000000" required>
+      <div class="error" id="error2"></div>
+      <button type="submit" class="btn" id="submitBtn2">Verify &amp; Create Account</button>
+    </form>
+    <span class="resend" id="resendLink">Didn't get a code? Resend</span>
+  </div>
 </div>
 
 <script>
-  const form = document.getElementById('signupForm');
-  const errorBox = document.getElementById('errorBox');
-  const submitBtn = document.getElementById('submitBtn');
+  const rules = {
+    ruleLen: pw => pw.length >= 8,
+    ruleUpper: pw => /[A-Z]/.test(pw),
+    ruleNum: pw => /[0-9]/.test(pw),
+    ruleSym: pw => /[^A-Za-z0-9]/.test(pw),
+  };
+  document.getElementById('password').addEventListener('input', (e) => {
+    const pw = e.target.value;
+    for (const [id, test] of Object.entries(rules)) {
+      document.getElementById(id).classList.toggle('met', test(pw));
+    }
+  });
 
-  form.addEventListener('submit', async (e) => {
+  let signupState = {};
+
+  document.getElementById('detailsForm').addEventListener('submit', async (e) => {
     e.preventDefault();
+    const errorBox = document.getElementById('error1');
     errorBox.style.display = 'none';
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Creating account...';
+    const btn = document.getElementById('submitBtn1');
+    btn.disabled = true;
+    btn.textContent = 'Sending code...';
+
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    const businessName = document.getElementById('businessName').value;
+    const phone = document.getElementById('phone').value;
 
     try {
-      const res = await fetch('/api/auth/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          businessName: document.getElementById('businessName').value,
-          email: document.getElementById('email').value,
-          password: document.getElementById('password').value,
-        }),
+      const res = await fetch('/api/auth/signup/start', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, businessName, phone }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Something went wrong');
+      signupState = { email };
+      document.getElementById('emailDisplay').textContent = email;
+      document.getElementById('step1').classList.remove('active');
+      document.getElementById('step2').classList.add('active');
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.style.display = 'block';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Send Verification Code';
+    }
+  });
+
+  document.getElementById('otpForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errorBox = document.getElementById('error2');
+    errorBox.style.display = 'none';
+    const btn = document.getElementById('submitBtn2');
+    btn.disabled = true;
+    btn.textContent = 'Verifying...';
+
+    try {
+      const res = await fetch('/api/auth/signup/verify', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: signupState.email, code: document.getElementById('otpCode').value }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Something went wrong');
@@ -125,9 +204,15 @@
     } catch (err) {
       errorBox.textContent = err.message;
       errorBox.style.display = 'block';
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'Create Account';
+      btn.disabled = false;
+      btn.textContent = 'Verify & Create Account';
     }
+  });
+
+  document.getElementById('resendLink').addEventListener('click', () => {
+    document.getElementById('detailsForm').requestSubmit();
+    document.getElementById('step2').classList.remove('active');
+    document.getElementById('step1').classList.add('active');
   });
 </script>
 

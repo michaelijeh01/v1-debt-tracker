@@ -5,9 +5,18 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
 const { getDb } = require('./db');
+const { sendOtpEmail } = require('./email');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-insecure-secret-change-this';
 const COOKIE_NAME = 'v1_session';
+
+// Requires at least one uppercase letter, one number, and one symbol.
+function isStrongPassword(pw) {
+  return typeof pw === 'string' && pw.length >= 8
+    && /[A-Z]/.test(pw)
+    && /[0-9]/.test(pw)
+    && /[^A-Za-z0-9]/.test(pw);
+}
 
 function startServer(port) {
   const app = express();
@@ -116,27 +125,70 @@ function startServer(port) {
     next();
   }
 
-  app.post('/api/auth/signup', async (req, res) => {
-    const { email, password, businessName } = req.body;
-    if (!email || !password || password.length < 6) {
-      return res.status(400).json({ error: 'Email and a password (6+ characters) are required' });
+  // ---- Web signup: two steps — start (send OTP) then verify (create account) ----
+
+  app.post('/api/auth/signup/start', async (req, res) => {
+    const { email, password, businessName, phone } = req.body;
+    if (!email || !email.includes('@')) {
+      return res.status(400).json({ error: 'A valid email is required' });
+    }
+    if (!isStrongPassword(password)) {
+      return res.status(400).json({ error: 'Password must be 8+ characters with an uppercase letter, a number, and a symbol.' });
     }
     const db = await getDb();
     const normalizedEmail = email.trim().toLowerCase();
     if (db.data.webUsersByEmail[normalizedEmail]) {
       return res.status(409).json({ error: 'An account with that email already exists' });
     }
-    const ownerId = 'web_' + crypto.randomBytes(12).toString('hex');
+
+    const code = String(Math.floor(100000 + Math.random() * 900000)); // 6-digit code
     const passwordHash = await bcrypt.hash(password, 10);
-    db.data.owners[ownerId] = {
+    db.data.pendingSignups[normalizedEmail] = {
+      code,
       businessName: businessName || '',
-      email: normalizedEmail,
+      phone: phone || '',
       passwordHash,
+      expiresAt: Date.now() + 10 * 60 * 1000, // 10 minutes
+    };
+    await db.write();
+
+    try {
+      await sendOtpEmail(normalizedEmail, code);
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.json({ ok: true });
+  });
+
+  app.post('/api/auth/signup/verify', async (req, res) => {
+    const { email, code } = req.body;
+    const db = await getDb();
+    const normalizedEmail = (email || '').trim().toLowerCase();
+    const pending = db.data.pendingSignups[normalizedEmail];
+
+    if (!pending) return res.status(400).json({ error: 'No signup in progress for that email. Please start again.' });
+    if (Date.now() > pending.expiresAt) {
+      delete db.data.pendingSignups[normalizedEmail];
+      await db.write();
+      return res.status(400).json({ error: 'That code expired. Please request a new one.' });
+    }
+    if (String(code).trim() !== pending.code) {
+      return res.status(400).json({ error: 'Incorrect code. Please try again.' });
+    }
+
+    const ownerId = 'web_' + crypto.randomBytes(12).toString('hex');
+    db.data.owners[ownerId] = {
+      businessName: pending.businessName,
+      email: normalizedEmail,
+      phone: pending.phone,
+      passwordHash: pending.passwordHash,
       dashboardToken: crypto.randomBytes(16).toString('hex'),
       createdAt: new Date().toISOString(),
     };
     db.data.webUsersByEmail[normalizedEmail] = ownerId;
+    delete db.data.pendingSignups[normalizedEmail];
     await db.write();
+
     setSessionCookie(res, ownerId);
     res.json({ ok: true, ownerId, businessName: db.data.owners[ownerId].businessName });
   });
@@ -186,7 +238,7 @@ function startServer(port) {
   });
 
   app.post('/api/web/debts', requireWebAuth, async (req, res) => {
-    const { customerName, phone, amount } = req.body;
+    const { customerName, phone, amount, dueDate } = req.body;
     const cleanAmount = Number(amount);
     if (!customerName || !phone || !cleanAmount || cleanAmount <= 0) {
       return res.status(400).json({ error: 'Customer name, phone, and a valid amount are required' });
@@ -202,11 +254,24 @@ function startServer(port) {
       amount: cleanAmount,
       amountPaid: 0,
       paid: false,
+      dueDate: dueDate || null, // optional, e.g. "2026-10-15"
       createdAt: new Date().toISOString(),
     };
     db.data.debts.push(debt);
     await db.write();
     res.json(debt);
+  });
+
+  // SMS reminders need a paid provider (e.g. Termii) — this is honest about
+  // that instead of pretending to send something it can't.
+  app.post('/api/web/debts/:id/send-sms', requireWebAuth, async (req, res) => {
+    if (!process.env.TERMII_API_KEY) {
+      return res.status(501).json({
+        error: 'SMS reminders need a paid SMS provider connected first (e.g. Termii). Ask your developer to set this up — WhatsApp reminders work today for free.',
+      });
+    }
+    // Once TERMII_API_KEY is set, the actual send call goes here.
+    res.status(501).json({ error: 'SMS provider is configured but sending isn\'t wired up yet.' });
   });
 
   app.post('/api/web/debts/:id/log-payment', requireWebAuth, async (req, res) => {

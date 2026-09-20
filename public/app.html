@@ -63,31 +63,40 @@
   .debt-name { font-weight: 700; font-size: 15.5px; }
   .debt-amount { font-weight: 700; font-size: 16px; font-family: monospace; }
   .debt-note { font-size: 12.5px; color: var(--warning); margin-top: 3px; font-weight: 700; }
+
+  .countdown {
+    display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700;
+    margin-top: 6px; padding: 3px 9px; border-radius: 6px;
+  }
+  .countdown.ok { background: rgba(0,102,255,0.08); color: var(--blue); }
+  .countdown.soon { background: rgba(245,158,11,0.12); color: var(--warning); }
+  .countdown.overdue { background: rgba(220,38,38,0.12); color: var(--danger); }
+
   .pill { font-size: 10.5px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
   .pill-paid { background: rgba(22,163,74,0.12); color: var(--success); }
+
   .debt-actions { display: flex; gap: 8px; margin-top: 12px; }
   .action-btn {
     flex: 1; border: none; border-radius: 8px; padding: 9px; font-size: 13px; font-weight: 700;
     cursor: pointer; font-family: inherit;
   }
   .action-remind { background: var(--success); color: white; text-decoration: none; text-align: center; display: inline-block; }
+  .action-sms { background: #EFF6FF; color: var(--blue); border: 1.5px solid #BFDBFE; }
   .action-pay { background: var(--soft-white); border: 1.5px solid var(--border-light); color: var(--dark-text); }
   .action-delete { flex: 0 0 auto; width: 40px; background: var(--soft-white); border: 1.5px solid var(--border-light); color: var(--danger); }
   .pay-form { display: flex; gap: 8px; margin-top: 12px; }
   .pay-input { flex: 1; border: 1.5px solid var(--border-light); border-radius: 8px; padding: 9px 10px; font-family: monospace; font-size: 14px; }
 
-  /* New debt modal */
   .modal-overlay {
     display: none; position: fixed; inset: 0; background: rgba(10,15,31,0.6);
     align-items: center; justify-content: center; padding: 20px; z-index: 100;
   }
   .modal-overlay.open { display: flex; }
-  .modal {
-    background: var(--white); border-radius: 14px; padding: 28px; width: 100%; max-width: 380px;
-  }
+  .modal { background: var(--white); border-radius: 14px; padding: 28px; width: 100%; max-width: 380px; }
   .modal h2 { font-size: 18px; margin-bottom: 18px; }
   .modal label { display: block; font-size: 13px; font-weight: 700; margin: 14px 0 6px; }
   .modal input { width: 100%; padding: 11px 12px; border: 1.5px solid var(--border-light); border-radius: 8px; font-size: 14.5px; font-family: inherit; }
+  .modal small { display: block; color: var(--gray); font-size: 11.5px; margin-top: 4px; }
   .modal-actions { display: flex; gap: 10px; margin-top: 22px; }
   .modal-actions button { flex: 1; padding: 11px; border-radius: 8px; font-weight: 700; cursor: pointer; font-family: inherit; border: none; font-size: 14px; }
   .modal-cancel { background: var(--soft-white); color: var(--dark-text); }
@@ -141,7 +150,6 @@
   <div id="debtList"><div class="empty">Loading...</div></div>
 </div>
 
-<!-- New Debt Modal -->
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal">
     <h2>Log a new debt</h2>
@@ -152,6 +160,9 @@
       <input type="tel" id="customerPhone" placeholder="08031234567" required>
       <label>Amount owed (₦)</label>
       <input type="number" id="customerAmount" required min="1">
+      <label>Due date <small style="display:inline;color:#9CA3AF;">(optional)</small></label>
+      <input type="date" id="customerDueDate">
+      <small>Add a due date to show a countdown on this debt.</small>
       <div class="modal-error" id="modalError"></div>
       <div class="modal-actions">
         <button type="button" class="modal-cancel" onclick="closeModal()">Cancel</button>
@@ -169,10 +180,7 @@
   async function init() {
     const meRes = await fetch('/api/auth/me');
     const me = await meRes.json();
-    if (!me.loggedIn) {
-      window.location.href = '/login.html';
-      return;
-    }
+    if (!me.loggedIn) { window.location.href = '/login.html'; return; }
     document.getElementById('bizName').textContent = me.businessName || 'Your Business';
     loadDebts();
   }
@@ -199,6 +207,28 @@
     const greeting = businessName ? `Hello ${debt.customerName}, this is ${businessName}.` : `Hello ${debt.customerName},`;
     const message = `${greeting} Just a friendly reminder that ₦${owed.toLocaleString()} is still outstanding on your account. You can complete payment whenever convenient — thank you for your continued patronage! 🙏`;
     return `https://wa.me/${debt.phone}?text=${encodeURIComponent(message)}`;
+  }
+
+  // Renders "3 days left" / "Due today" / "Overdue by 2 days" from a due date
+  function countdownHtml(dueDate) {
+    if (!dueDate) return '';
+    const today = new Date(); today.setHours(0,0,0,0);
+    const due = new Date(dueDate + 'T00:00:00');
+    const diffDays = Math.round((due - today) / 86400000);
+
+    let cls = 'ok', text = '';
+    if (diffDays < 0) { cls = 'overdue'; text = `Overdue by ${Math.abs(diffDays)} day${Math.abs(diffDays)===1?'':'s'}`; }
+    else if (diffDays === 0) { cls = 'soon'; text = 'Due today'; }
+    else if (diffDays <= 3) { cls = 'soon'; text = `Due in ${diffDays} day${diffDays===1?'':'s'}`; }
+    else { cls = 'ok'; text = `Due in ${diffDays} days`; }
+
+    return `<div class="countdown ${cls}">⏱ ${text}</div>`;
+  }
+
+  async function sendSms(id) {
+    const res = await fetch(`/api/web/debts/${id}/send-sms`, { method: 'POST' });
+    const data = await res.json();
+    alert(data.error || 'SMS sent.');
   }
 
   function render() {
@@ -230,6 +260,7 @@
           <div class="debt-amount">${debt.paid ? '<span class=\"pill pill-paid\">PAID</span>' : '₦' + owed.toLocaleString()}</div>
         </div>
         ${isPartial ? `<div class="debt-note">₦${debt.amountPaid.toLocaleString()} paid of ₦${debt.amount.toLocaleString()} total</div>` : ''}
+        ${!debt.paid ? countdownHtml(debt.dueDate) : ''}
         ${debt.paid ? '' : showForm ? `
           <div class="pay-form">
             <input class="pay-input" type="number" id="payInput-${debt.id}" placeholder="₦ amount">
@@ -237,7 +268,8 @@
           </div>
         ` : `
           <div class="debt-actions">
-            <a class="action-btn action-remind" href="${buildWhatsAppLink(debt, businessName)}" target="_blank">Remind</a>
+            <a class="action-btn action-remind" href="${buildWhatsAppLink(debt, businessName)}" target="_blank">WhatsApp</a>
+            <button class="action-btn action-sms" onclick="sendSms('${debt.id}')">SMS</button>
             <button class="action-btn action-pay" onclick="openPaymentForm('${debt.id}')">Log Payment</button>
             <button class="action-btn action-delete" onclick="deleteDebt('${debt.id}','${escapeHtml(debt.customerName)}')">🗑</button>
           </div>
@@ -284,6 +316,7 @@
           customerName: document.getElementById('customerName').value,
           phone: document.getElementById('customerPhone').value,
           amount: document.getElementById('customerAmount').value,
+          dueDate: document.getElementById('customerDueDate').value || null,
         }),
       });
       const data = await res.json();
