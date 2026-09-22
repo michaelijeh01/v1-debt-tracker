@@ -153,8 +153,12 @@ function startServer(port) {
     await db.write();
 
     try {
-      await sendOtpEmail(normalizedEmail, code);
+      await Promise.race([
+        sendOtpEmail(normalizedEmail, code),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Email server took too long to respond. Please try again.')), 12000)),
+      ]);
     } catch (err) {
+      console.error('❌ OTP email failed:', err.message);
       return res.status(500).json({ error: err.message });
     }
     res.json({ ok: true });

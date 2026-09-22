@@ -16,6 +16,9 @@ function getTransporter() {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_APP_PASSWORD,
     },
+    connectionTimeout: 10000, // fail after 10s instead of hanging forever
+    greetingTimeout: 10000,
+    socketTimeout: 10000,
   });
   return transporter;
 }
