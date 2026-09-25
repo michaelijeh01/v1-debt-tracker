@@ -11,12 +11,16 @@ function getTransporter() {
     return null;
   }
   transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
+    family: 4, // force IPv4 — fixes ENETUNREACH on Google's IPv6 range, same
+               // root cause as the earlier MongoDB Atlas connection issue
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_APP_PASSWORD,
     },
-    connectionTimeout: 10000, // fail after 10s instead of hanging forever
+    connectionTimeout: 10000,
     greetingTimeout: 10000,
     socketTimeout: 10000,
   });
